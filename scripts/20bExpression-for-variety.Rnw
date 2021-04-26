@@ -1,0 +1,65 @@
+% -*- TeX:Rnw:UTF-8 -*-
+% ----------------------------------------------------------------
+% .R knitr file  ************************************************
+% ----------------------------------------------------------------
+%%
+<<echo=FALSE>>=
+###############################################
+##                                           ##
+## (c) Andrej Blejec (andrej.blejec@nib.si)  ##
+##                                           ##
+###############################################
+@
+<<echo=FALSE,results='hide'>>=
+options(width=70)
+@
+
+\section{Analysis for variety}
+
+<<>>=
+var <- "C"
+select <- pd$variety == var
+@
+
+<<>>=
+design <- with(pd[select,], model.matrix(~ treat* day))
+head(design)
+@
+
+<<>>=
+fit <- lmFit(exprs[ ,select], design)
+fit <- eBayes(fit)
+head(fit1[1:6,])
+@
+
+<<>>=
+my.interaction.plot <- function(F1,F2,y,...){
+    xlab <- deparse(substitute(F1))
+    y <- unlist(y)
+    ylim <- range(y)
+    interaction.plot(F1, F2, y,
+     col = 1:length(levels(F2)),
+     xlab = xlab,
+     ylim = ylim,
+     type = "b",
+     pch = rep(16, length(levels(F2))),
+     ...
+     )
+    points(as.numeric(F1)+(as.numeric(F2)-1.5)/15,y, col=as.numeric(F2))
+    }
+@
+
+<<>>=
+tt <- topTable(fit, coef=4)
+@
+
+
+<<>>=
+varname <- rownames(tt)[1]
+with(pd[select, ], my.interaction.plot(day,treat,exprs[varname,select]) )
+@
+
+
+<<>>=
+
+@ 

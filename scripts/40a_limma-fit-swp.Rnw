@@ -1,0 +1,89 @@
+% -*- TeX:Rnw:UTF-8 -*-
+% ----------------------------------------------------------------
+% .R knitr file  ************************************************
+% ----------------------------------------------------------------
+%%
+<<echo=FALSE>>=
+###############################################
+##                                           ##
+## (c) Andrej Blejec (andrej.blejec@nib.si)  ##
+##                                           ##
+###############################################
+@
+<<echo=FALSE,results='hide'>>=
+options(width=70)
+@
+
+\clearpage
+\subsection{Model design}
+
+Simple model with water potential for all data:
+<<>>=
+design <- with(pd, model.matrix(~ swp))
+head(design)
+tail(design)
+
+@
+Linear models
+<<>>=
+fit1 <- lmFit(exprs, design)
+fit1 <- eBayes(fit1)
+head(fit1[1:6,]$coefficients)
+fit <- fit1
+@
+
+<<>>=
+coefs <- fit$coefficients
+plot(coefs[,1],coefs[,2])
+@
+
+<<>>=
+coefs[abs(coefs[,2])>20,]
+@
+
+Top table
+
+<<>>=
+which <- 2
+  tt <- topTable(fit,coef=which, number=Inf)
+  head(tt)
+@
+
+<<>>=
+par(mfrow=c(2,3))
+ns <- c(500,300,200,100,50,25)
+for(i in 1:length(ns)){
+plot(coefs[,1],coefs[,2],xlab="Intercept",ylab="Slope")
+filter <- rownames(tt)[1:ns[i]]
+points(coefs[filter,1],coefs[filter,2], col=i+1,pch=16)
+title(paste("Top ",ns[i]))
+}
+@
+
+ 
+<<>>=
+topn <- 10
+out <- ""
+
+@
+
+\clearpage
+\subsection{Top \Sexpr{topn} genes}
+
+Plots of situation for top \Sexpr{topn} genes
+
+<<>>=
+(cname <- colnames(coefs)[2])
+varnames <- rownames(tt)[1:topn]
+varname <- varnames[1]
+for(varname in varnames) 
+ out <- paste(out,knit_child(file.path("../doc/","40aa_one-gene-plots.Rnw"),quiet=TRUE))
+@
+\Sexpr{out}
+
+
+
+
+<<>>=
+
+@

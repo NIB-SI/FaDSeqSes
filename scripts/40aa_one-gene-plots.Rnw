@@ -1,0 +1,39 @@
+% -*- TeX:Rnw:UTF-8 -*-
+% ----------------------------------------------------------------
+% .R knitr file  ************************************************
+% ----------------------------------------------------------------
+%%
+<<echo=FALSE>>=
+###############################################
+##                                           ##
+## (c) Andrej Blejec (andrej.blejec@nib.si)  ##
+##                                           ##
+###############################################
+@
+<<echo=FALSE,results='hide'>>=
+options(width=70)
+@
+
+\clearpage
+\subsubsection{\Sexpr{varname}}
+Coefficient \Sexpr{cname} for \Sexpr{varname}.
+
+
+<<>>=
+par(mfrow=c(2,3))
+#
+plot.wpe(varname,model="")
+plot.wpe(varname,model="+")
+plot.wpe(varname,model="*")
+plot.ewp(varname,model="")
+plot.ewp(varname,model="+")
+plot.ewp(varname,model="*")
+@
+
+
+
+
+
+
+<<>>=
+

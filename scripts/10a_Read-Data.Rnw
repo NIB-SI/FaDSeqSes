@@ -1,0 +1,343 @@
+% -*- TeX:Rnw:UTF-8 -*-
+% ----------------------------------------------------------------
+% .R knitr file  ************************************************
+% ----------------------------------------------------------------
+%%
+<<echo=FALSE>>=
+###############################################
+##                                           ##
+## (c) Andrej Blejec (andrej.blejec@nib.si)  ##
+##                                           ##
+###############################################
+@
+<<echo=FALSE,results='hide'>>=
+options(width=70)
+@
+
+\hfill{Entered 10a-ReadData.Rnw}
+
+\clearpage
+\subsection{Phenodata}
+
+Two incomplete lines in original phenodata were manually completed.
+Sample ids (\code{ID}) were parsed in Excel to form factors of interest:
+\code{variety},\code{year} and \code{day}.
+
+
+
+<<>>=
+(pfn <- getDesc(.adesc
+    , "Phenodata"))
+dir(file.path(.iroot), pattern = pfn)
+phdata <- read.table(file.path(.iroot, pfn)
+  , header = TRUE
+  , sep = "\t"
+  , stringsAsFactors = FALSE
+  )
+rownames(phdata) <- phdata[,1]
+my.summary(phdata)
+dim(phdata)
+names(phdata)
+@
+
+\subsection{Declare factor types}
+
+In 2018, day 11 is present only for C and day 10 only for F.
+The two day points coincide and are changed to a common value 11.
+
+<<>>=
+for(yr in levels(phdata$year)){
+cat("\n\nYear:",yr,"\n")
+print(
+with(phdata[phdata$year==yr,], ftable(treat,variety,factor(day)))
+)
+}
+phdata[phdata$day==10,"day"] <- 11
+@
+
+Factors
+
+<<>>=
+factors <- colnames(phdata)[4:8]
+factors
+for (varname in factors)
+phdata[,varname] <- factor(phdata[,varname])
+#
+# Change the order of levels for treatment
+phdata$treat <- factor(phdata$treat, levels=c("WW","WS"))
+str(phdata[,factors])
+@
+
+Date of sampling might be useful as well
+
+<<warnings=FALSE>>=
+library(lubridate)
+pdata$date <- as_date(pdata$Date, format="%d.%m.%Y")
+table(data.frame(pdata$date,"Count"=1))
+@
+
+\subsection{Select samples}
+
+Check for assay specific sample selection column (assay name)
+<<>>=
+.aName
+selectId <- substr(gsub("-",".",.aName),2,nchar(.aName))
+selectId <- .vzorci
+selectId
+#
+if(selectId %in% names(phdata)){
+pdata <- phdata[!is.na(phdata[,selectId]),]
+cat("Sample selection column found (", selectId,"),\n",
+nrow(pdata), "samples will be used.\n")
+} else {
+pdata <- phdata
+cat("No sample selection column found,\n",
+     nrow(pdata), "samples will be used.\n")
+}
+dim(pdata)
+@
+
+Table of sample conditions
+
+<<>>=
+head(pdata[,factors])
+for(yr in levels(pdata$year)){
+cat("\n\nYear:",yr,"\n")
+print(
+with(pdata[pdata$year==yr,], ftable(treat,variety,factor(day)))
+)
+}
+@
+
+
+<<>>=
+my.summary(pdata)
+@
+
+For separate yearly analyses, it will be handy to have two, separate phenodata objects.
+
+<<>>=
+dim(pdata)
+table(pdata$year)
+pdata18 <- pdata[pdata$year==18,]
+dim(pdata18)
+pdata18[1:5,1:6]
+#
+pdata19 <- pdata[pdata$year==19,]
+dim(pdata19)
+pdata19[1:5,1:6]
+@
+
+\clearpage
+\subsection{Featuredata}
+
+<<>>=
+(ffn <- getDesc(.adesc,"Featuredata"))
+@
+
+<<results='asis'>>=
+if(ffn=="") {
+cat("No feature data declared in the assay metadata file.\\\\")
+fdata <- NULL
+}
+@
+
+<<eval=(ffn!=""), echo=(ffn!="")>>=
+fdata <- read.table(file.path(.iroot,ffn)
+    , sep = "\t"
+    , header = TRUE
+    , na.strings = c("", "-")
+    , stringsAsFactors = FALSE
+    , row.names = 1
+    )
+if(interactive()) my.summary(fdata)
+@
+
+A glimpse into feature data (or \code{NULL} if nonexistent)
+<<>>=
+fdata[,1:2]
+@
+
+\clearpage
+\subsection{Transcripts measurements}
+
+Normalised transcript measurements for each year are available in two separate files. The first few lines contain factor values and are commented out (by a hash). The first effecitve line is the table header line with sample ids.
+
+\subsubsection{Normalized values}
+
+Data for year 2018:
+
+<<>>=
+(t18fn <- getDesc(.adesc,"Transcript data 18"))
+td  <- read.table(file.path(.aroot,t18fn),
+    header = TRUE,
+    sep = "\t",
+    row.names = 1
+    )
+head(td)
+dim(td)
+t18 <- td
+@
+
+<<>>=
+(t19fn <- getDesc(.adesc,"Transcript data 19"))
+td  <- read.table(file.path(.aroot,t19fn),
+    header = TRUE,
+    sep = "\t",
+    row.names = 1
+    )
+head(td)
+dim(td)
+t19 <- td
+@
+
+<<>>=
+dim(t18)-dim(t19)
+@
+
+Data for year 2018 have more genes than data for year 2019.
+
+<<>>=
+allNames <- unique(c(rownames(t18),rownames(t19)))
+length(allNames)
+sum(allNames %in% rownames(t18))
+sum(allNames %in% rownames(t19))
+tbl <- table(gene.in.18=allNames %in% rownames(t18),
+             gene.in.19=allNames %in% rownames(t19))
+tbl
+@
+
+We have complete yearly data on \Sexpr{tbl[2,2]} genes.
+At the meeting on Nov. 19 we decided to use only the genes in the intersection.
+This will allow us to use the combined set of data.
+
+\subsubsection{Keep genes in the intersection}
+
+<<>>=
+gene.keep <- (allNames %in% rownames(t18))&(allNames %in% rownames(t19))
+sum(gene.keep)
+t18 <- t18[allNames[gene.keep],]
+t19 <- t19[allNames[gene.keep],]
+all(rownames(t18)==rownames(t19))
+dim(t18)
+dim(t19)
+@
+
+%% \subsubsection{Filter genes by expression}
+%%
+%%
+%%
+%% <<>>=
+%% minLevel <- 0.7
+%% minNumber <- 1
+%% @
+%%
+%% Genes with normalized values that are not exceeding the minimal treshold expression of \Sexpr{minLevel} in less than \Sexpr{minNumber} sample(s) are excluded. Probably this should be performed on combined data, for both years.
+%% But first we will do it separatey on each dataset and then on the combined intersection.
+%%
+%% <<>>=
+%% minLevel
+%% minNumber
+%% expr18 <- apply(t18, 1,
+%%        FUN = function(x) sum(x >= minLevel))
+%% filter18 <- expr18 >= minNumber
+%% nrow(t18)
+%% sum(filter18)
+%% par(mfrow=c(1,2))
+%% plot(sort(expr18), ylab="N of samples")
+%% expr19 <- apply(t19, 1,
+%%        FUN = function(x) sum(x >= minLevel))
+%%        plot(sort(expr19), ylab="N of samples")
+%% filter19 <- expr19 >= minNumber
+%% nrow(t19)
+%% sum(filter19)
+%% @
+%%
+%% Filtering didn't substantially reduce the number of genes:\\[12pt]
+%% Year 2018: \Sexpr{nrow(t18)} $\rightarrow$ \Sexpr{sum(filter18)}\\
+%% Year 2019: \Sexpr{nrow(t19)} $\rightarrow$ \Sexpr{sum(filter19)}
+
+Order rows of yearly phenodata according to the sequence of samples (columns) in the measurements.
+
+Year 2018
+<<>>=
+dim(pdata18)
+dim(t18)
+pdata18 <- pdata18[colnames(t18),]
+dim(pdata18)
+dim(t18)
+pdata18[,4:8]
+all(rownames(pdata18)==colnames(t18))
+@
+
+Get rid of unused factors
+
+<<>>=
+str(pdata18[,factors])
+for (var in factors) pdata18[,var] <- factor(pdata18[,var])
+str(pdata18[,factors])
+@
+
+
+Year 2019
+<<>>=
+dim(pdata19)
+dim(t19)
+pdata19 <- pdata19[colnames(t19),]
+dim(pdata19)
+dim(t19)
+pdata19[,4:9]
+all(rownames(pdata19)==colnames(t19))
+@
+
+Get rid of unused factors levels
+
+<<>>=
+str(pdata19[,factors])
+for (var in factors) pdata19[,var] <- factor(pdata19[,var])
+str(pdata19[,factors])
+@
+
+<<>>=
+t1819 <- data.frame(t18, t19)
+pdata1819 <- rbind(pdata18, pdata19)
+str(pdata1819[,factors])
+catln("Sample names ",
+c("different","OK")[1+all(rownames(pdata1819)==colnames(t1819))])
+@
+
+\clearpage
+\subsection{Created objects overview}
+
+<<results='hide'>>=
+#if(!exists("addObject")) {
+addObject <- function(x=NULL,desc="",x0=my.objects){
+if(is.null(x)) x0 <- data.frame(name="",description="",class="", lenght=NA,ncol=NA) else {
+nr <- length(x)
+nc <- ncol(x)
+if(is.data.frame(x)) {
+    nr <- nrow(x)
+    nc <- ncol(x)
+    }
+if(is.null(nc)) nc <- NA
+x0 <- rbind(x0,c(deparse(substitute(x)), desc, class(x), nr, nc))
+x0 <- x0[x0$name!="",]
+}
+rownames(x0) <- 1:nrow(x0)
+return(x0)
+}
+#}
+(my.objects <- addObject())
+(my.objects <- addObject(t18,"Transcripts for 2018"))
+(my.objects <- addObject(t19,"Transcripts for 2019"))
+(my.objects <- addObject(t1819,"Transcripts for 2018 and 2019"))
+(my.objects <- addObject(pdata18,"Phenodata for 2018"))
+(my.objects <- addObject(pdata19,"Phenodata for 2019"))
+(my.objects <- addObject(pdata1819,"Phenodata for 2018 and 2019"))
+@
+
+<<results='markup'>>=
+my.objects
+
+@
+

@@ -1,0 +1,110 @@
+% -*- TeX:Rnw:UTF-8 -*-
+% ----------------------------------------------------------------
+% .R knitr file  ************************************************
+% ----------------------------------------------------------------
+%%
+<<echo=FALSE>>=
+###############################################
+##                                           ##
+## (c) Andrej Blejec (andrej.blejec@nib.si)  ##
+##                                           ##
+###############################################
+@
+<<echo=FALSE,results='hide'>>=
+options(width=60)
+@
+\clearpage
+\subsubsection{\Sexpr{varname}}
+Coefficient \Sexpr{cname} for \Sexpr{varname}.
+
+<<>>=
+tt[varname,]
+plot.interactions(varname,phdata=pd,data=exprs)
+
+@
+\clearpage
+
+<<>>=
+plot.interactions(varname,phdata=pdata1819, data=t1819)
+@
+\clearpage
+<<>>=
+plot.interactions(varname,phdata=pdata1819d, data=t1819)
+
+@
+
+\clearpage
+<<>>=
+fit1[varname,]$coefficients
+cname
+tt[varname,c(1,5)]
+plot.interactions(varname,
+coef=fit1[varname,]$coefficients,
+coef.plt=TRUE)
+@
+
+\clearpage
+<<>>=
+coefs <- plot.interactions(varname,
+coef=fit1[varname,]$coefficients,
+coef.plt=TRUE, ylim=NA)
+@
+
+\clearpage
+Coefficient plot
+<<echo=FALSE>>=
+select <- 1:6
+#varname <- rownames(tt)[i]
+plot.coefficients <- function(select=1:ncol(coefs),add=FALSE, cex=rep(1,length(select)),legend=FALSE){
+coef <- fit1[varname,]$coefficients
+ind <- grep("F",colnames(coef))
+coef[-ind]
+coef[ind]
+x <- coef[-ind][select]
+y <- coef[ind][select]+coef[-ind][select]*as.numeric(add)
+xlim <- range(c(x,y,-1.1,1.1))
+if(add) ylab="F" else ylab="F | C"
+plot(x,y,col=select,
+   pch=16,
+   xlab="C",ylab=ylab,
+   ylim=xlim,
+   xlim=xlim,
+   type="n"
+   )
+rect(-10,-1,10,1, col=rgb(.80,.80,.80),border=NA)
+rect(-1,-10,1,10, col=rgb(.80,.80,.80),border=NA)
+box()
+#abline(h=-1:1,v=-1:1, col=8)
+abline(v=0,h=0,col=8,lwd=0.5)
+if(add)  abline(c(0,1),col=7,lwd=2) else
+   abline(h=0, col=7,lwd=2)
+
+
+points(x,y,bg=select,
+   col="white",
+   pch=21,
+      cex=cex*1.75
+      )
+title(varname)
+if(legend) legend("topright",bty="n",col=select,pch=rep(16,5) ,legend=colnames(coef)[-ind][select], cex=.7,pt.cex=1.5)
+
+#polygon(c(-2,-1,-1, 1, 1, 2, 2, 1, 1,-1,-1,-2,-2),
+#        c(-1,-1,-2,-2,-1,-1, 1, 1, 2, 2, 1, 1,-1),
+#        col=rgb(.95,.95,.95,.50))
+
+
+
+}
+
+@
+
+<<>>=
+par(mfrow=c(2,2),mar=c(4,4,2,2))
+plot.coefficients(1:6, legend=TRUE)
+plot.coefficients(2:6)
+plot.coefficients(1:6, add=TRUE)
+plot.coefficients(2:6, add=TRUE)
+@
+
+
+

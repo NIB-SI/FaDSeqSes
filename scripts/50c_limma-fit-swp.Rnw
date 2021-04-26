@@ -1,0 +1,1187 @@
+% -*- TeX:Rnw:UTF-8 -*-
+% ----------------------------------------------------------------
+% .R knitr file  ************************************************
+% ----------------------------------------------------------------
+%%
+<<echo=FALSE>>=
+###############################################
+##                                           ##
+## (c) Andrej Blejec (andrej.blejec@nib.si)  ##
+##                                           ##
+###############################################
+@
+<<echo=FALSE,results='hide'>>=
+options(width=60)
+@
+
+
+<<>>=
+testvar <- "Vitvi01g01391"
+@
+
+\clearpage
+\subsection{Overall Model}
+
+Simple model with water potential for all data:
+<<>>=
+design1 <- with(pd, model.matrix(~ swp))
+#design1[,2] <- (-design1[,2])
+head(design1)
+tail(design1)
+@
+Linear model
+<<>>=
+fit1 <- lmFit(exprs, design1)
+fit1[testvar,]$coefficients
+fit1 <- eBayes(fit1)
+fit1[testvar,]$coefficients
+head(fit1[1:6,]$coefficients)
+fit <- fit1
+fit[testvar,]$coef
+@
+
+Models for each variety
+
+<<>>=
+coefs <- fit1$coefficients
+plot(coefs[,1],coefs[,2])
+@
+
+<<>>=
+dim(coefs[abs(coefs[,2])>2,])
+
+@
+
+Top table
+
+<<>>=
+which <- 2
+  tt <- topTable(fit1,coef=which, number=Inf)
+  head(tt)
+@
+
+\clearpage
+\subsection{Models for variety}
+
+Model with water potential by variety (slopes are of interest).
+<<>>=
+design2 <- with(pd, model.matrix(~ swp*variety))
+head(design2)
+tail(design2)
+
+@
+Linear model
+<<>>=
+fit2 <- lmFit(exprs, design2)
+fit2[testvar,]$coefficients
+@
+
+<<>>=
+varname <- testvar
+par(mfrow=c(1,3))
+p <- plot.ewp(varname,model="")
+plot(pd$swp,exprs[testvar,],  xlim=c(0,-1.6),
+   ,pch=16, col=6-as.numeric(pd$variety)*2,cex=pd$day/2)
+c(p$C$coef[2],p$F$coef[2])
+fit2$coef[testvar,]
+p <- plot.ewp(varname,model="", exprs=exprs, pd=pd)
+
+@
+
+<<>>=
+#
+fit2 <- eBayes(fit2)
+fit2[testvar,]$coefficients
+head(fit2[1:6,]$coefficients)
+@
+
+For comparison, here is the beginning of coefficients for overall model.
+<<>>=
+head(fit1[1:6,]$coefficients)
+@
+<<>>=
+fita[2]
+fit1[testvar,]$coefficients[2]
+fitc[2]
+fit2[testvar,]$coefficients[2]
+fitf[2]
+fit2[testvar,]$coefficients[2]+fit2[testvar,]$coefficients[4]
+@
+
+Plots of coefficients
+
+<<>>=
+oldpar <- par(mfrow=c(2,2), mar=c(4,4,1,1))
+coefs1 <- fit1$coefficients
+coefs2 <- fit2$coefficients
+plot(coefs1[,2],coefs2[,2], xlab="Slope All",ylab="Slope C")
+abline(c(0,1),col=2)
+cf24 <- coefs2[,2] + coefs2[,4]
+plot(coefs2[,2], cf24, xlab="Slope C",ylab="Slope F")
+abline(c(0,1),col=2)
+plot(coefs1[,2], cf24, xlab="Slope All",ylab="Slope F")
+abline(c(0,1),col=2)
+par(oldpar)
+@
+
+<<warnings=FALSE,echo=FALSE,include=FALSE>>=
+source("../doc/Graph3d.r")
+persp.3d(coefs2[,2],cf24, coefs1[,2],
+phi=45, zlab="All",xlab="C",ylab="F")
+@
+
+\subsection{Mean expressions}
+
+<<>>=
+my.predict <- function(fit, x=1){
+cf <- fit$coefficients
+mc <- cf%*%c(1,x,0,0)
+mf <- cf%*%c(1,x,1,x)
+return(data.frame(mc=mc,mf=mf))
+}
+fit2$coefficients[1:2,]
+my.predict(fit2)[1:2,]
+my.predict(fit2)[testvar,]
+ma <- fit1$coefficients%*%c(1,mean(swp))
+macf <- data.frame(ma=ma,my.predict(fit2, x=mean(swp)))
+head(macf)
+@
+
+<<>>=
+macf[testvar,]
+@
+
+Another way is using a separate model for varieties. It will provide opportunity to test the differences between varieties:
+
+<<>>=
+design3 <- with(pd, model.matrix(~ 0+variety))
+head(design3)
+tail(design3)
+fit3 <- lmFit(exprs, design3)
+fit3[testvar,]$coefficients
+mswps <- with(pd, aggregate(swp, list(variety), mean) )$x
+my.predict(fit2, mswps[1])[testvar,1]
+my.predict(fit2, mswps[2])[testvar,2]
+
+@
+
+Object \code{fit3} holds mean expressions for varieties.
+
+Predicting expression for given SWP value
+
+<<>>=
+p <- plot.ewp(varname,model="", exprs=exprs, pd=pd)
+x <- 0
+points(rep(x,2) ,my.predict(fit2,x=x)[varname,], cex=1.5)
+x <- -1.5
+points(rep(x,2) ,my.predict(fit2,x=x)[varname,], cex=1.5)
+@
+
+\subsubsection{ Plots of variety coefficients}
+
+I will try to set the variety slopes compared to slope of complete data
+
+
+For comparison, here is the beginning of coefficients for overall model.
+
+<<>>=
+head(fit1[1:6,]$coefficients)
+
+@
+
+Extract slopes
+
+<<>>=
+A <- fit1$coefficients[,2]
+C <- fit2$coefficients[,2]
+F <- fit2$coefficients[,2]+fit2$coefficients[,4]
+ma <- macf[,"ma"]
+mc <- fit3$coefficients[,1]
+mf <- fit3$coefficients[,2]
+coefs <- data.frame(A,C,F,ma,mc,mf)
+head(coefs)
+ca <- C-A
+fa <- F-A
+fc <- F-C
+coefs <- data.frame(mc,mf,C,F)
+head(coefs)
+@
+
+<<>>=
+par(mfrow=c(2,3))
+hist(A,xlim=range(c(A,C,F)))
+hist(C,xlim=range(c(A,C,F)))
+hist(F,xlim=range(c(A,C,F)))
+hist(ma)
+hist(mc)
+hist(mf)
+@
+
+
+\subsubsection{Types by effects}
+<<>>=
+delta <- 2
+large_abs_A <- abs(A)> delta
+small_fc <- abs(fc) < delta/5
+small_ca <- abs(ca) < delta/5
+oldpar <- par(mfrow=c(2,3), mar=c(4,4,1,1))
+plot(A,ca, xlab="Slope All",ylab="Slope C - slope All")
+points(A[large_abs_A],ca[large_abs_A],col=2,pch=16)
+abline(h=0,v=0,col=2)
+plot(A,fa, xlab="Slope All",ylab="Slope F - slope All")
+points(A[large_abs_A],fa[large_abs_A],col=2,pch=16)
+abline(h=0,v=0,col=2)
+plot(ca,fa, xlab="Slope C - slope All",ylab="Slope F - slope All")
+points(ca[large_abs_A],fa[large_abs_A],col=2,pch=16)
+abline(h=0,v=0,col=2)
+#
+plot(A,fc, xlab="slope All",ylab="Slope F - slope C")
+points(A[large_abs_A],fc[large_abs_A],col=2,pch=16)
+points(A[large_abs_A&small_fc],fc[large_abs_A&small_fc],col=4,pch=16)
+abline(h=0,v=0,col=2)
+#
+plot(C,fc, xlab="slope C",ylab="Slope F - slope C")
+points(C[large_abs_A],fc[large_abs_A],col=2,pch=16)
+points(C[large_abs_A&small_fc],fc[large_abs_A&small_fc],col=4,pch=16)
+abline(h=0,v=0,col=2)
+#
+plot(C,F, xlab="slope C",ylab="Slope F ")
+points(C[large_abs_A],F[large_abs_A],col=2,pch=16)
+points(C[large_abs_A&small_fc],F[large_abs_A&small_fc],col=4,pch=16)
+type1 <- large_abs_A&small_fc&small_ca
+points(
+   C[type1],
+   F[type1],
+   col=3,pch=16)
+
+abline(h=0,v=0,col=2)
+abline(c(0,1),col=3)
+par(oldpar)
+@
+
+\section{Situation types and Type selection criteria}
+
+Boundaries:
+\begin{description}
+  \item[minX] X at least ... ( > )
+  \item[maxX] X at most ... ( < )
+  \item[deltaxy] difference of mean x-y treshold ( < )
+\end{description}
+
+<<>>=
+.deltam     # <- 2
+.min.slope       # <-  2
+.max.slope       # <- 0.5
+.diff.slope      # <- 1
+.maxfc      # <- 0.5
+.diff01
+.deltam2    # <- .deltam/2
+@
+
+\subsection{Old Types}
+
+Type1
+
+<<>>=
+# type1 <- (large_abs_C|large_abs_F) & small_fc & (abs(mc-mf)<deltam)
+@
+
+Absolute slope C or F larger than \Sexpr{.min.slope} with difference of slopes smaller than \Sexpr{.maxfc} and difference of means below \Sexpr{.deltam}.
+
+Type2
+
+<<>>=
+#type2 <- (large_abs_C & large_abs_F) & (abs(fc) > diff.slope)&(abs(mc-mf)>deltam2)
+#type2 <- type2 & ( (C*F >0) )
+@
+
+Both slopes C and F larger than \Sexpr{.min.slope} , both positive or negative, with difference of slopes larger than \Sexpr{.diff.slope} and difference of means above \Sexpr{.deltam2}.
+
+
+
+
+
+<<>>=
+#
+delta <- 2
+#
+(deltam <- as.numeric(.deltam)) #2
+(deltam2 <- as.numeric(.deltam2)) # delta mean for type 2
+(min.slope <- as.numeric(.min.slope))   # 2       # slope C larger
+(max.slope <- as.numeric(.max.slope))    # slope C smaller
+min.slope <- min.slope    # slope F larger
+max.slope <- max.slope    # slope F smaller
+minA <- min.slope    # slope A larger
+(diff.slope <- as.numeric(.diff.slope)) # 1      # difference F - C larger
+(diff.slope5 <- as.numeric(.diff.slope5)) # difference for F - C larger for type 5
+(maxfc <- as.numeric(.maxfc))    # difference F - C smaller
+maxca <- maxfc  # difference C - A smaller
+maxfa <- maxfc  # difference F - A smaller
+#
+large_abs_A <- abs(A)> minA
+large_abs_C <- abs(C)> min.slope
+large_abs_F <- abs(F)> min.slope
+#
+small_fc <- abs(fc) < maxfc
+small_ca <- abs(ca) < maxca
+small_fa <- abs(fa) < maxfa
+plot(C,F, xlab="slope C",ylab="Slope F ")
+#points(C[large_abs_A],F[large_abs_A],col=2,pch=16)
+#
+type10 <- large_abs_A & small_fc & small_ca
+type1 <- (large_abs_C|large_abs_F) & small_fc & (abs(mc-mf)<deltam)
+table(type10,type1)
+points(
+   C[type1],
+   F[type1],
+   col=2, pch=16)
+#
+type2 <- (large_abs_C & large_abs_F) & (abs(fc) > diff.slope)&(abs(mc-mf)>deltam2)
+type2 <- type2 & ( (C*F >0) )
+points(
+   C[type2],
+   F[type2],
+   col=3,pch=16)
+#
+type30 <- ((abs(C)<max.slope)|(abs(F)<max.slope)) & (abs(fc)> diff.slope)
+type3 <- ((abs(C)<max.slope)|(abs(F)<max.slope)) & (abs(fc)> diff.slope)&(abs(mc-mf)>deltam)
+table(type3,type30)
+points(
+   C[type3],
+   F[type3],
+   col=4,pch=16)
+#
+type4 <- (large_abs_C|large_abs_F)&(abs(mc-mf)>deltam)&(C*F>0)
+points(
+   C[type4],
+   F[type4],
+   col=5,pch=16)
+#
+type5 <- ((abs(C)<max.slope)|(abs(F)<max.slope)) & (abs(fc)> diff.slope5)&(abs(mc-mf)<deltam)
+points(
+   C[type5],
+   F[type5],
+   col=6,pch=16)
+
+table(type3,type5)
+points(
+   C[type3],
+   F[type3],
+   col=4,pch=16)
+# type 3 is a subset of type5, type3 & large mean difference
+
+#
+abline(h=0,v=0,col=2)
+abline(c(0,1),col=3)
+types <- data.frame(type1,type2,type3,type4,type5)
+nt <- apply(types,2,sum)
+legend("bottomright",pch=rep(16,5),col=2:6,legend=paste0("type",1:5," | ",nt),bty="n")
+
+@
+
+\subsection{New type definitions}
+After discussion with Maruša on Feb 3, new type definitions were sumarized in the excel file.
+
+Function to plot the overview for types
+
+<<>>=
+#' Plot selected expression swp graphs for selected genes
+#'
+#' @param filt logical vector to select genes, typically type identification
+#' @param
+#' @return Plot first six exprs-swp situations
+#' @export
+#' @seealso \code{\link{funkcija}}
+#' @note
+#' @references
+#' @keywords package
+#' @title
+#' @author Andrej Blejec \email{andrej.blejec@nib.si}
+#' @examples
+#' plot.type() # TRUE most of the time
+
+plot.type <- function( filt=rep(TRUE,6), ...){
+par(mfrow=c(2,3), oma=c(0,0,1,0))
+#filt <- type1
+print(sum(filt))
+for(i in 1:min(sum(filt),6)){
+varname <- rownames(exprs)[filt][i]
+p <- plot.ewp(varname,model="", exprs=exprs, pd=pd, ylim=range(exprs)
+     , cex= 1.5
+     , pch = c(16,16)
+     , all = FALSE
+     )
+mtext(paste(round(coefs[varname,],1),collapse=" | "),cex=0.75)
+mtext(paste(round(c(p$C$coefficients[2],p$F$coefficients[2]),1)
+,collapse=" | "),1,cex=0.75)
+}
+}
+plot.type()
+@
+
+<<>>=
+(min.slope <- as.numeric(.min.slope))         # slope C larger
+(max.slope <- as.numeric(.max.slope))    # slope C smaller
+(diff.slope <- as.numeric(.diff.slope))    # difference of slopes
+(diff01 <- as.numeric(.diff01))    # difference at extremes
+
+@
+
+\clearpage
+\subsubsection{Parameter explanation}
+
+\begin{description}
+  \item[.min.slope  (\Sexpr{.min.slope})] Lower level for large slope
+  \item[.max.slope (\Sexpr{.max.slope})] Upper level for small slope
+  \item[.diff.slope (\Sexpr{.diff.slope})] Threshold for slope difference
+  \item[.diff01 (\Sexpr{.diff01})] Threshold for differences of predicted values at 0 and -1.5
+\end{description}
+
+Preparation for decision rules
+<<>>=
+# predicted values
+left <- my.predict(fit2, x = -0.2)
+right <- my.predict(fit2, x = -1.4)
+left[varname,]
+right[varname,]
+p <- plot.ewp(varname,model="", exprs=exprs, pd=pd, ylim=range(exprs)
+     , cex= 1.5
+     , pch = c(16,16)
+     , all = FALSE
+     )
+# differences at the no-crossing borders
+diffl <- apply(left,1,diff)
+diffr <- apply(right,1,diff)
+nocross <- (diffl*diffr>0)
+# differences of predicted values at extremes
+diff0 <- apply(my.predict(fit2,x=0),1,diff)
+diff1 <- apply(my.predict(fit2,x=-1.5),1,diff)
+@
+
+<<>>=
+plot(diffl,diffr)
+points(diffl[nocross],diffr[nocross], col=2)
+abline(h=c(-.diff01,.diff01),v=c(-.diff01,.diff01))
+@
+Function to plot coefficients for types
+<<>>=
+largeslope <- ( abs(C) > min.slope) & (abs(F) > min.slope)
+plot.type(largeslope&nocross)
+@
+
+<<>>=
+head(types)
+plot.types <- function(x=C, y=F, type=types,title,...){
+xlab <- deparse(substitute(x))
+ylab <- deparse(substitute(y))
+plot(x,y, xlab=xlab,ylab=ylab, col=8)
+m <- ncol(type)
+sek <- 1:ncol(type)
+for( i in sek){
+points(
+   x[type[,i]],
+   y[type[,i]],
+   col=i+1,pch=16)
+   }
+   abline(h=0,v=0,col=2)
+abline(c(0,1),col=3)
+if(!missing(title)) title(title)
+nt <- apply(type,2,sum)
+pre <- "" # substr(rep("         ",length(nt)),1,(3-nchar(nt))*2.3)
+legend("bottomright",pch=rep(16,m),col=2:(m+1),legend=paste0(colnames(type)," | ",pre,nt),bty="n")
+}
+#plot.types(type=Types)
+@
+
+\clearpage
+\subsubsection{Type1}
+
+<<>>=
+plot(C,F, xlab="slope C",ylab="Slope F ")
+   abline(h=0,v=0,col=8)
+#points(C[large_abs_A],F[large_abs_A],col=2,pch=16)
+#
+type10 <- large_abs_A & small_fc & small_ca
+type1 <- (large_abs_C|large_abs_F) & small_fc & (abs(mc-mf)<deltam)
+#
+Type1 <- C*F > 0
+Type1 <- Type1 & ( abs(C) > min.slope) & (abs(F) > min.slope)
+Type1 <- Type1 & ( abs(F-C) < diff.slope)
+Type1 <- Type1 & ((abs(diff0) < diff01) & (abs(diff1) < diff01))
+#
+table(Type1,type1)
+points(
+   C[Type1],
+   F[Type1],
+   bg=2, pch=21, col=1)
+   abline(c(0,1),col=3)
+Types <- data.frame(Type1)
+nt <- apply(Types,2,sum)
+legend("bottomright",pch=rep(16,5),col=2:7,legend=paste0("Type",1:ncol(Types)," | ",nt),bty="n")
+nt
+plot.type(Type1)
+plot.types(type=Types)
+@
+
+\clearpage
+\subsubsection{Type2}
+
+<<>>=
+plot(C,F, xlab="slope C",ylab="Slope F ")
+      abline(h=0,v=0,col=8)
+#
+type2 <- (large_abs_C & large_abs_F) & (abs(fc) > diff.slope)&(abs(mc-mf)>deltam2)
+type2 <- type2 & ( (C*F >0) )
+#
+
+#
+Type2 <- C*F > 0
+Type2 <- Type2 & ( abs(C) > min.slope) & (abs(F) > min.slope )
+Type2 <- Type2 & ( abs(F-C) > diff.slope )
+Type2 <- Type2 & ( abs(diff1) < diff01 )
+Type2 <- Type2 & nocross
+#
+table(Type2,type2)
+points(
+   C[Type2],
+   F[Type2],
+   bg=3, pch=21, col=1)
+   abline(c(0,1),col=3)
+Type1.2 <- Type2
+Types <- data.frame(Type1,Type1.2)
+nt <- apply(Types,2,sum)
+legend("bottomright",pch=rep(16,5),col=2:7,legend=paste0("Type",1:ncol(Types)," | ",nt),bty="n")
+nt
+
+#
+
+plot.type(Type1.2)
+plot.types(type=Types)
+
+@
+\clearpage
+\subsubsection{Type3}
+
+<<>>=
+plot(C,F, xlab="slope C",ylab="Slope F ")
+      abline(h=0,v=0,col=8)
+type30 <- ((abs(C)<max.slope)|(abs(F)<max.slope)) & (abs(fc)> diff.slope)
+type3 <- ((abs(C)<max.slope)|(abs(F)<max.slope)) & (abs(fc)> diff.slope)&(abs(mc-mf)>deltam)
+#
+table(( abs(C) > min.slope) , (abs(F) < max.slope))
+
+Type3 <- ((abs(diff0) < diff01) | (abs(diff1) < diff01))
+Type3 <- Type3 & nocross
+Type3.C <-  Type3 & (( abs(C) > min.slope) & (abs(F) < max.slope))
+Type3.F <-  Type3 & (( abs(F) > min.slope) & (abs(C) < max.slope))
+Type3 <- Type3 & ((( abs(C) > min.slope) & (abs(F) < max.slope)) |
+                 (( abs(F) > min.slope) & (abs(C) < max.slope)))
+all(Type3==(Type3.C|Type3.F))
+cbind(Type3,Type3.C,Type3.F)[((Type3 != (Type3.C|Type3.F))),]
+sum((Type3 != (Type3.C|Type3.F)))
+#
+table(Type3,type3)
+points(
+   C[Type3.C],
+   F[Type3.C],
+   bg=4, pch=21, col=1)
+   points(
+   C[Type3.F],
+   F[Type3.F],
+   bg=5, pch=21, col=1)
+abline(c(0,1),col=3)
+Types <- data.frame(Type1,Type1.2,Type3.C, Type3.F)
+nt <- apply(Types,2,sum)
+legend("bottomright",pch=rep(16,ncol(Types)),col=c(4,5),legend=paste0(colnames(Types)," | ",nt),bty="n")
+nt
+#
+
+plot.type(Type3.C)
+plot.type(Type3.F)
+plot.types(type=Types)
+
+@
+
+\clearpage
+\subsubsection{Type4}
+
+<<>>=
+plot(C,F, xlab="slope C",ylab="Slope F ")
+      abline(h=0,v=0,col=8)
+#
+type4 <- (large_abs_C|large_abs_F)&(abs(mc-mf)>deltam)&(C*F>0)
+#
+Type4 <- C*F > 0
+Type4 <- Type4 & ( abs(C) > min.slope) & (abs(F) > min.slope )
+Type4 <- Type4 & ( abs(F-C) > diff.slope )
+Type4 <- Type4 & ( abs(diff0) < diff01 )
+Type4 <- Type4 & nocross
+#
+Type1.4 <- Type4
+table(Type4,type4)
+points(
+   C[Type4],
+   F[Type4],
+   bg=5, pch=21, col=1)
+   abline(h=0,v=0,col=2)
+abline(c(0,1),col=3)
+Types <- data.frame(Type1,Type1.2,Type3.C, Type3.F, Type1.4)
+nt <- apply(Types,2,sum)
+legend("bottomright",pch=rep(16,5),col=2:7,legend=paste0("Type",1:ncol(Types)," | ",nt),bty="n")
+nt
+
+plot.type(Type1.4)
+plot.types(type=data.frame(Type1.4))
+
+@
+
+\clearpage
+\subsubsection{Type5}
+
+<<>>=
+plot(C,F, xlab="slope C",ylab="Slope F ")
+      abline(h=0,v=0,col=8)
+#
+type5 <- ((abs(C)<max.slope)|(abs(F)<max.slope)) & (abs(fc)> diff.slope5)&(abs(mc-mf)<deltam)
+#
+Type5 <- C*F > 0
+Type5 <- Type5 & ( abs(C) > min.slope) & (abs(F) > min.slope )
+Type5 <- Type5 & ( ( abs(diff0) > diff01 ) & ( abs(diff1) > diff01 ) )
+Type5 <- Type5 & nocross
+#
+table(Type5,type5)
+# type 3 is a subset of type5, type3 & large mean difference
+table(type5,Type5)
+points(
+   C[Type5],
+   F[Type5],
+   bg=6, pch=21, col=1)
+#
+abline(h=0,v=0,col=2)
+abline(c(0,1),col=3)
+Types <- data.frame(Type1,Type1.2,Type3.C, Type3.F, Type1.4, Type5)
+nt <- apply(Types,2,sum)
+legend("bottomright",pch=rep(16,5),col=2:7,legend=paste0("Type",1:ncol(Types)," | ",nt),bty="n")
+nt
+plot.type(Type5)
+plot.types(type=data.frame(Type5))
+@
+
+\clearpage
+\subsubsection{Type6}
+
+<<>>=
+plot(C,F, xlab="slope C",ylab="Slope F ")
+      abline(h=0,v=0,col=8)
+#
+#
+Type6 <- Type6 & ((abs(diff0) > diff01) & (abs(diff1) > diff01))
+Type6 <- Type6 & nocross
+Type6.C <-  Type6 & (( abs(C) > min.slope) & (abs(F) < max.slope))
+Type6.F <-  Type6 & (( abs(F) > min.slope) & (abs(C) < max.slope))
+Type6 <- Type6 & ((( abs(C) > min.slope) & (abs(F) < max.slope)) |
+                 (( abs(F) > min.slope) & (abs(C) < max.slope)))
+#
+table(Type6,Type6.C, Type6.F)
+# type 3 is a subset of Type6, type3 & large mean difference
+table(Type3,Type6)
+points(
+   C[Type6.C],
+   F[Type6.C],
+   bg=7, pch=21, col=1)
+points(
+   C[Type6.F],
+   F[Type6.F],
+   bg=7, pch=21, col=1)
+#
+abline(h=0,v=0,col=2)
+abline(c(0,1),col=3)
+Types <- data.frame(Type1,Type1.2,Type3.C,Type3.F, Type1.4,Type5, Type6.C, Type6.F)
+nt <- apply(Types,2,sum)
+legend("bottomright",pch=rep(16,5),col=2:7,legend=paste0("Type",1:ncol(Types)," | ",nt),bty="n")
+nt
+plot.type(Type6.C)
+plot.type(Type6.F)
+plot.types(type=cbind(Type6.C, Type6.F))
+@
+
+<<>>=
+plot.types(type=Types)
+@
+
+
+<<>>=
+nts <- apply(Types,2,sum)
+sum(nts)
+
+@
+
+<<results='asis'>>=
+xtable( data.frame(Count=t(t(addmargins(apply(Types,2,table),2)[2,]))), auto=TRUE, caption="Table of new types.")
+@
+
+
+
+Override old types
+
+<<>>=
+types.old <- types
+types.new <- Types
+types <- types.new
+
+@
+
+<<>>=
+head(types)
+plot.types()
+plot.types(diff0,diff1)
+plot.types(C,diff0)
+plot.types(C+F,diff0-diff1)
+@
+
+<<>>=
+#persp.3d(C+F,diff0,diff1, col=8)
+#persp(1:6,1:6,6:1, col=8)
+
+@
+
+
+<<>>=
+x <- coefs[Type1,]
+ylim <- range(x)
+my.parallelplot <- function(x, ylim = range(x), title,  ...){
+if(missing(title)) title <- deparse(substitute(x))
+m <- ncol(x)
+plot(0,0, type = "n"
+    , xlim = c(1,m)
+    , ylim = ylim
+    , axes = FALSE
+    , ann=FALSE
+    )
+title(title)
+mtext(paste("n of profiles:", nrow(x)),cex=0.75)
+axis(2)
+axis(1, at=1:m,labels=gsub("\\.\\.\\.","-",colnames(x)),cex=0.9,xpd=TRUE)
+abline(v=1:m,col=8)
+x$col <- 1:nrow(x)
+apply(x,1,function(y) lines(1:m,y[-(m+1)],col=y[m+1]))
+invisible(nrow(x))
+}
+if(interactive()) my.parallelplot(coefs[Type1,])
+@
+
+<<>>=
+par(mfrow=c(2,3))
+tpar <- data.frame(C,F,F-C,diff0,diff1)
+ylim <- range(tpar)
+my.parallelplot(tpar[Type1,], ylim=ylim)
+my.parallelplot(tpar[Type2,], ylim=ylim)
+my.parallelplot(tpar[Type3,], ylim=ylim)
+my.parallelplot(tpar[Type4,], ylim=ylim)
+my.parallelplot(tpar[Type5,], ylim=ylim)
+my.parallelplot(tpar[Type6,], ylim=ylim)
+@
+
+<<>>=
+plot.types()
+@
+
+<<>>=
+par(mfrow=c(2,3))
+tpar <- data.frame(C,F,F-C,diff0,diff1)
+abstpar <- abs(tpar)
+ylim <- range(abstpar)
+my.parallelplot(abstpar[Type1,], ylim=ylim)
+my.parallelplot(abstpar[Type2,], ylim=ylim)
+my.parallelplot(abstpar[Type3,], ylim=ylim)
+my.parallelplot(abstpar[Type4,], ylim=ylim)
+my.parallelplot(abstpar[Type5,], ylim=ylim)
+my.parallelplot(abstpar[Type6,], ylim=ylim)
+
+
+@
+
+<<>>=
+plot.types(abs(C),abs(F),title="Absolute slopes")
+@
+
+<<>>=
+plot.types(C,F,title="Slopes")
+plot.types(mc,mf,title="Mean expression")
+@
+
+<<>>=
+varname <- testvar
+plot.ewp(varname,model="", exprs=exprs, pd=pd)
+@
+
+<<>>=
+apply(data.frame(Type1,Type2,Type3,Type4, type5, Type6),2,sum)
+@
+
+<<>>=
+for(i in 1:6) {
+plot.type(types[,i])
+mtext(names(types[i]), outer=TRUE, line=-1)
+}
+@
+
+
+
+<<>>=
+which <- 2
+  tt <- topTable(fit,coef=which, number=Inf)
+  head(tt)
+@
+
+\clearpage
+\subsubsection{Export output files}
+
+Export fit in a form:
+
+<<>>=
+fit <- fit2
+fitfn <- "lm-fit-swpXvariety-statistics.txt"
+
+write.fit(head(fit),file="", adjust="BH")
+write.fit(fit,file=file.path(.oroot,fitfn), adjust="BH")
+@
+
+Export top table
+
+<<write top table, results='asis'>>=
+ttfn <- "TopTable.txt"
+tt <- topTable(fit, number=Inf)
+#
+types <- types.new
+tt$Type <- ""
+types <- types[rownames(tt),]
+all(rownames(tt)==rownames(types))
+#ind <- sapply(rownames(tt),FUN=function(x) match(x,rownames(types)))
+for(i in 1:ncol(types)) tt$Type[types[,i]] <- colnames(types)[i]
+#
+ind <- sapply(rownames(tt),FUN=function(x) match(x,fdata$geneID))
+ttext <- data.frame(tt,fdata[ind,2:5] )
+my.write.table(ttext,file=file.path(.oroot,ttfn))
+types <- types.new
+@
+
+
+<<>>=
+.topn <- 100
+topn <- .topn
+@
+
+
+
+\clearpage
+\section{Types by significance of contrasts}
+
+Starting point is fit2
+
+
+
+Model with water potential by variety.
+<<>>=
+design2 <- with(pd, model.matrix(~ swp*variety))
+head(design2)
+tail(design2)
+
+@
+
+Linear model
+<<>>=
+fit2 <- lmFit(exprs, design2)
+fit2[testvar,]$coefficients
+@
+
+<<>>=
+design3 <- with(pd, model.matrix(~ 0+variety))
+head(design3)
+tail(design3)
+fit3 <- lmFit(exprs, design3)
+fit3[testvar,]$coefficients
+@
+
+Combine design2 and design3:
+Replace interceps with means in coefficients and standard deviations
+
+<<>>=
+fit4 <- fit2
+fit4$coefficients[,1] <- fit3$coefficients[,1]
+fit4$coefficients[,3] <- fit3$coefficients[,2]
+fit4$stdev.unscaled[,1] <- fit3$stdev.unscaled[,1]
+fit4$stdev.unscaled[,3] <- fit3$stdev.unscaled[,2]
+dimnames(fit4$coefficients)[[2]] <- c("mc","c1","mf","f1.c1")
+fit4[testvar,]$coefficients
+fit2[testvar,]$coefficients
+fit3[testvar,]$coefficients
+@
+
+<<>>=
+fit4<- eBayes(fit4)
+head(fit4)
+fit4[testvar,]
+@
+
+<<>>=
+tt <- topTable(fit4,2,number=Inf)
+tt[testvar,]
+@
+
+With difference of means
+
+<<>>=
+fit4 <- fit2
+fit4$coefficients[,1] <- fit3$coefficients[,1]
+fit4$coefficients[,3] <- fit3$coefficients[,2]-fit3$coefficients[,1]
+fit4$stdev.unscaled[,1] <- fit3$stdev.unscaled[,1]
+fit4$stdev.unscaled[,3] <- apply(fit3$stdev.unscaled[,1:2], 1
+     , function(x) sqrt(sum(x^2 )) )
+dimnames(fit4$coefficients)[[2]] <- c("mc","c","mf.mc","f.c")
+fit4[testvar,]$coefficients
+fit3[testvar,]$stdev.unscaled
+fit4[testvar,]$stdev.unscaled
+#
+fit2[testvar,]$coefficients
+fit3[testvar,]$coefficients
+@
+
+<<>>=
+fit4<- eBayes(fit4)
+head(fit4)
+fit4[testvar,]
+@
+
+<<>>=
+fit4[testvar,]$coef
+fit4[testvar,]$p.value
+#
+tt.mc <- topTable(fit4,1,number=Inf, sort.by="none", confint=TRUE)
+all(rownames(fit4)==rownames(tt.mc))
+tt.mc[testvar,]
+alpha <- as.numeric(.alpha)
+with(tt.mc, table(p=P.Value < alpha, adj.p=adj.P.Val < alpha))
+#
+tt.c <- topTable(fit4,2,number=Inf, sort.by="none", confint=TRUE)
+tt.c[testvar,]
+with(tt.c, table(p=P.Value < alpha, adj.p=adj.P.Val < alpha))
+#
+tt.mf.mc <- topTable(fit4,3,number=Inf, sort.by="none", confint=TRUE)
+tt.mf.mc[testvar,]
+with(tt.mf.mc, table(p=P.Value < alpha, adj.p=adj.P.Val < alpha))
+#
+tt.f.c <- topTable(fit4,4,number=Inf, sort.by="none", confint=TRUE)
+tt.f.c[testvar,]
+with(tt.f.c, table(p=P.Value < alpha, adj.p=adj.P.Val < alpha))
+@
+
+\clearpage
+\subsubsection{Export fit statistics, types and descriptions}
+
+<<>>=
+fit4fn <- "lm-fit-means-swpXvariety-statistics.txt"
+fit <- fit4
+decide0 <- decideTests(fit,lfc=0 )
+vennDiagram(decide0)
+#ind <- sapply(rownames(fit),FUN=function(x) match(x,fdata$geneID))
+ind <- match(rownames(fit),fdata$geneID)
+df4 <- as.data.frame(fit)
+write.fit(fit,file="../doc/tmp2.txt", adjust="BH")
+df4 <-  read.table("../doc/tmp2.txt")
+colnames(df4)
+Koef.f <- df4$Coef.f.c+df4$Coef.c
+ins <- grep("t.",colnames(df4))[1]
+df4 <- data.frame(df4[,1:(ins-1)],Koef.f,df4[,ins:ncol(df4)])
+#
+## df4$type <- ""
+## types <- types.old
+## types <- types[rownames(df4),]
+## all(rownames(df4)==rownames(types))
+## #ind <- sapply(rownames(tt),FUN=function(x) match(x,rownames(types)))
+## for(i in 1:ncol(types)) {
+##       df4$type[types[,i]] <- paste(df4$type[types[,i]], colnames(types)[i], sep="|")
+##       print(table(df4$type))
+##       }
+## df4$type <- gsub("^\\|","", df4$type)
+#
+df4$Type <- ""
+types <- types.new
+types <- types[rownames(df4),]
+all(rownames(df4)==rownames(types))
+#ind <- sapply(rownames(tt),FUN=function(x) match(x,rownames(types)))
+for(i in 1:ncol(types)) {
+      df4$Type[types[,i]] <- paste(df4$Type[types[,i]], colnames(types)[i], sep="|")
+      print(table(df4$Type))
+      }
+df4$Type <- gsub("^\\|","", df4$Type)
+types <- types.new
+#
+# Mark interesting genes:
+stat4 <- data.frame(df4,fdata[ind,2:5] )
+pc <- stat4[,"P.value.c"]
+pfc <- stat4[,"P.value.f.c"]
+inc <- c("","*")[(pc < alpha)+1]
+incf <- c("","+")[((pc > alpha)&(pfc < alpha))+1]
+df4$interestingC <- inc
+df4$interestingFC <- incf
+#
+stat4 <- data.frame(df4,fdata[ind,2:5] )
+table(stat4$interestingC,stat4$interestingFC)
+print(table(stat4$type,stat4$Type), zero.print=".")
+@
+
+Some genes are classified into two types:
+
+<<>>=
+t(t(table(df4$Type)))
+@
+
+
+<<>>=
+summary(types)
+@
+
+Order stat4 and types by decreasing coefficient for C
+
+<<>>=
+ordr <- rev(order(stat4$Coef.c))
+stat4 <- stat4[ordr,]
+types <- types[rownames(stat4),]
+all(rownames(stat4)==rownames(types))
+@
+
+Genes from interesting bins are marked by\\
+ '*' (for significant slope C) and\\
+ '+' (for significant difference in slopes).
+
+<<write stat4, results="asis">>=
+my.write.table(stat4,file=file.path(.oroot,fit4fn),
+label="WP x variety model statistics, types and gene annotation")
+@
+\clearpage
+
+Comparison with effects.
+
+Large abs slope C
+
+<<>>=
+alpha
+indp <- (tt.c$P.Value < alpha)
+sum(indp)
+table(rownames(tt.c)[indp]%in%rownames(tt.c)[large_abs_C])
+table(indp,large_abs_C)
+@
+
+Small difference of slopes
+<<>>=
+alpha
+indp <- (tt.f.c$P.Value > alpha)
+sum(indp)
+table(rownames(tt.c)[indp]%in%rownames(tt.c)[small_fc])
+table(indp,small_fc)
+@
+
+Large difference of mean expressions
+
+<<>>=
+alpha
+range(tt.mf.mc$P.Value)
+indp <- (tt.mf.mc$P.Value < alpha)
+sum(indp)
+table(rownames(tt.c)[indp]%in%rownames(tt.c)[(abs(mc-mf)<deltam)])
+table(indp,large.diff.means=(abs(mc-mf)<deltam))
+@
+
+\clearpage
+\subsection{Genes in types}
+
+Plots of situation for genes in determined types. Significance can be checked in individual plots.
+
+Figures caption:
+
+<<echo=FALSE>>=
+fig.cap <- "Mean expression (E) and mean water potential (WP). C (blue) and all F (red). Gray line (if present) is regression of all data, regardles of treatment and variety."
+@
+
+\Sexpr{fig.cap}
+
+\clearpage
+
+Order stat4 and types by decreasing coefficient for C
+
+<<>>=
+ordr <- rev(order(stat4$Coef.c))
+stat4 <- stat4[ordr,]
+types <- types[rownames(stat4),]
+all(rownames(stat4)==rownames(types))
+@
+
+
+<<>>=
+par(mfrow=c(2,3))
+ylim <- range(stat4[,"Coef.c"])
+for(i in 1:ncol(types)){
+varnames <- rownames(stat4)[types[,i]]
+plot(stat4[varnames,"Coef.c"], ylab="Slope C",
+  ,ylim=ylim, main=colnames(types)[i])
+  abline(h=0,col=8)
+}
+@
+
+
+
+<<50aa_one-gene-plots.Rnw>>=
+# Report for selected genes
+out <- ""
+(cname <- "")
+colnames(stat4)
+tipi <- sort(unique(stat4$type))[-1]
+i <- 1
+(typevar <- substr(names(types)[1],1,4))
+for(i in 1:ncol(types)){
+out <- paste(out,"
+\\clearpage
+\\subsection{",colnames(types)[i],"}\\")
+varnames <- rownames(stat4)[types[,i]]
+varname <- varnames[2]
+for(varname in varnames)
+ out <- paste(out,knit_child(file.path("../doc/","50aa_one-gene-plots.Rnw"),quiet=TRUE))
+}
+@
+\Sexpr{out}
+
+
+<<eval=FALSE,echo=FALSE>>=
+varname <- testvar
+par(mfrow=c(1,3))
+p <- plot.ewp(varname,model="")
+plot(pd$swp,exprs[testvar,],  xlim=c(0,-1.6),
+   ,pch=16, col=6-as.numeric(pd$variety)*2,cex=pd$day/2)
+c(p$C$coef[2],p$F$coef[2])
+fit2$coef[testvar,]
+p <- plot.ewp(varname,model="", exprs=exprs, pd=pd)
+#
+isC <- regexpr("C",colnames(exprs))>0
+(mswpC <- mean(swp[isC]))
+(mswpF <- mean(swp[!isC]))
+(msC <- my.predict(fit2, mswpC)[testvar,][1])
+(msF <- my.predict(fit2, mswpF)[testvar,][2])
+points(mswpC, msC, cex=2, col=4)
+points(mswpF, msF, cex=2,col=2)
+ms2 <- my.predict(fit2,-1)[testvar,]
+ms2
+points(rep(-1,2), ms2, cex=2)
+ms3 <- fit3[testvar,]$coefficients
+ms3
+abline(h=ms3,col=c(4,2))
+abline(v=c(mswpC,mswpF), col=c(4,2))
+
+@
+
+<<>>=
+#
+fit2 <- eBayes(fit2)
+fit2[testvar,]$coefficients
+head(fit2[1:6,]$coefficients)
+@ 

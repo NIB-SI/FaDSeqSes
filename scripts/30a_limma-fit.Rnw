@@ -1,0 +1,753 @@
+% -*- TeX:Rnw:UTF-8 -*-
+% ----------------------------------------------------------------
+% .R knitr file  ************************************************
+% ----------------------------------------------------------------
+%%
+<<echo=FALSE>>=
+###############################################
+##                                           ##
+## (c) Andrej Blejec (andrej.blejec@nib.si)  ##
+##                                           ##
+###############################################
+@
+<<echo=FALSE,results='hide'>>=
+options(width=60)
+@
+\clearpage
+\subsection{Data}
+
+<<>>=
+exprs[1:5,1:5]   # exprsession data
+pd[1:5,1:5]     # phenodata
+pd <- pd[,c("variety","year","day","treat","rep")]
+pd[1:5,1:5]
+y <- t(as.matrix(exprs))
+@
+
+<<>>=
+dim(exprs)
+dim(pd)
+pd <- pd[colnames(exprs),]
+dim(pd)
+all(rownames(pd)==colnames(exprs))
+@
+
+Factors:
+
+<<>>=
+names(pd)
+str(pd)
+summary(pd)
+@
+
+\clearpage
+\subsection{Model design}
+
+
+
+<<>>=
+design <- with(pd, model.matrix(~ variety * day * treat))
+head(design)
+@
+
+Explanation of coefficients
+
+<<>>=
+colnames(design)
+comp <- c(
+"C-WW-11vs0",
+"F-WW-11vsC-WW-11",
+"C-WW-34vsC-WW-11",
+"C-WW-67vsC-WW-11",
+"C-WS-11vsC-WW-11",
+"(F-WW-34vsF-WW-11)vs(C-WW-34vsC-WW-11)",
+"(F-WW-67vsF-WW-11)vs(C-WW-67vsC-WW-11)",
+"(F-WS-11vsF-WW-11)vs(C-WS-11vsC-WW-11)",
+"C-WS-34vsEC-34|S",
+"C-WS-67vsEC-67|S",
+"(F-WS-34vsF-WW-34)vs(C-WS-34vsC-WW-34)",
+"(F-WS-67vsF-WW-67)vs(C-WS-67vsC-WW-67)"
+)
+cbind(colnames(design),comp)
+comp <- gsub("-","",comp)
+comp <- gsub("\\)vs\\(",") - (",comp)
+comp <- gsub("vs",":",comp)
+comps <- data.frame(colnames(design),comp)
+comps
+
+@
+
+
+<<>>=
+fit1 <- lmFit(exprs, design)
+fit1 <- eBayes(fit1)
+head(fit1[1:6,]$coefficients)
+@
+
+Export top table
+
+<<>>=
+tt <- topTable(fit1, n=Inf)
+write.table(tt,file=file.path(.aroot,"output","topTable18.txt"),sep="\t",col.names=NA)
+@
+
+\clearpage
+\subsubsection{Interaction plot}
+
+
+<<>>=
+.testing <- !TRUE
+predicted <- function(i, coef){
+#tst(i)
+tst(coef)
+nm <- colnames(coef)
+if(length(i)==1) {
+( nm0=nm[i])
+( nm1=strsplit(nm0,":")[[1]])
+( nm2=outer(nm1,nm1,paste,sep=":"))
+( nm2=nm2[upper.tri(nm2)])
+( nm3 <- c("(Intercept)",nm1,nm2,nm0))
+( nm3 <- unique(nm3) )
+(  coef[,nm3])
+ tst(nm3)
+ value <- sum(coef[,nm3])
+ names(value) <- colnames(coef)[i]
+ } else { value=sapply(i, predicted, coef=coef) }
+ return(value)
+}
+coef <- fit1[1:6,]$coefficients
+ncols <- ncol(coef)
+for( i in 1:ncols) print(predicted(i,coef))
+plot(1:ncols,sapply(1:ncols,predicted,coef),type="b",col=1:6,pch=16)
+predicted(1:3,coef)
+predicted(1,fit1[1,]$coefficients)
+.testing <- FALSE
+@
+
+
+<<>>=
+.testing <- TRUE
+tst <- function(x) {
+if(.testing) {
+    cat("-->", deparse(substitute(x)),"\n")
+     print(x)
+     }
+invisible(x)
+}
+coef <- fit1[1:6,]$coefficients[1:2,]
+tst(coef)
+.testing <- FALSE
+
+@
+
+
+
+<<>>=
+# ver 7
+.testing <- !TRUE
+plot.interactions <- function(varname, phdata=pd, data=exprs, coef=NULL, coef.plt=FALSE, ylim=NULL, ...){
+tst(dim(phdata))
+tst(dim(data))
+phdata <- phdata[colnames(data),]
+days <- levels(factor(phdata$day))
+ndays <- length(days)
+ntreat <- length(levels(phdata$treat))
+lv <- levels(phdata$variety)
+nvar <- length(lv)
+d <- 0.05
+par(mfrow=c(1,length(lv)),mar=c(7,4,4,3))
+# Factors
+#
+fct <- data.frame(f1=phdata$day,
+                f2=phdata$treat,
+                f3=phdata$variety,
+                row.names=rownames(phdata)
+                )
+head(fct)
+
+#
+#for(i in 1:ncol(y)){
+#    varname <- colnames(y)[i]
+# determine ylim
+     y <-as.numeric(data[varname, ])
+    if(is.null(ylim)) ylim <- range(y,na.rm=TRUE) else
+    if(is.na(ylim)[1]) ylim <- range(data,na.rm=TRUE)
+    if(!is.null(coef)) {
+    es <- predicted(1:12,coef)-coef
+    ylim <- range(c(ylim, es[-1]))
+    }
+#
+   for(var in levels(phdata$variety)){
+    sel <- phdata$variety %in% var
+    with(phdata[sel,],{
+       interaction.plot(day,treat, y[sel], ylim=ylim,type="b",col=1:2, lty=2:1, pch=rep(16,2), ylab=c("Expression"), cex=1.5,lwd=3)
+       tst(aggregate(y[sel],list(day,treat),mean))
+    if(is.null(coef)) {
+         rng <- (by(y[sel],list(treat,day),range))
+         x0 <-  as.numeric(day)+(as.numeric(treat)-1.5)/7
+         for(va in 1:nrow(rng))
+           for(dy in 1:ncol(rng))
+        segments(dy + (va-1.5)/7, rng[[va,dy]][1],
+                 dy + (va-1.5)/7, rng[[va,dy]][2],
+            lwd=1,
+            col=va)
+         points( x0, y[sel], pch=21, bg="white", col=as.numeric(treat))
+    }
+    if(any(diff(as.numeric(levels(day)))<0)) {
+        abline(v=which(diff(as.numeric(levels(day)))<0)+0.5,col=8)
+
+    }
+    title(paste(varname,"\n", var))
+    })
+# coefficients plot
+    if(!is.null(coef)){
+    ind <- grep(lv[2],colnames(coef))
+    tst(predicted((1:length(colnames(coef)))[-ind],coef))
+    tst(predicted(ind,coef))
+    tst(c((1:length(colnames(coef)))[-ind],ind))
+    grind <- array(c((1:length(colnames(coef)))[-ind],ind), dim=c(ndays, ntreat, nvar),
+       dimnames <- list(days,levels(phdata$treat),levels(phdata$var))
+       )
+    tst(grind)
+    tst(with(fct,
+    grind[levels(f1)[1],levels(f2)[1],levels(f3)[1]]))
+      #ind <- grep(lv[2],colnames(coef))
+      if(var!=lv[2]) ind <- -ind
+       #abline(h=sum(cf[c(1)]),xpd=NA,col=1)
+       #abline(h=sum(cf[c(1,3)]),xpd=NA,col=2)
+       #tst(ind)
+       cf <- coef[,ind]
+       cF <- cf
+       cc <- coef[-ind]
+       if(var==lv[2]) { cf <- coef[,ind]+coef[,-ind]
+       #tst(colnames(coef)[ind])
+       #tst(colnames(coef)[-ind])
+          names(cf) <- colnames(coef)[ind]
+          coefs <- data.frame(cC=coef[-ind], cF.model=coef[ind], cF.plus.C = coef[-ind]+coef[ind])
+          rownames(coefs) <- colnames(coef)[-ind]
+          }
+       abline(h=cf[1],col=8,lwd=1)
+       lwda <- 1.5
+##
+### First level
+#
+       if(var!=lv[2]) {
+         eind <- grind[ ,1,1]  #c(1,3,4)
+                  tst(eind)
+         cl <- 0
+         esF <- predicted(eind,coef)
+         es <- esF-coef[,eind]
+#         lines(1:ndays,es,col=7,lwd=3)
+#         lines(1:ndays,esF,col=7,lwd=3)
+#         lines(1:ndays,es,col=8,type="b",lwd=1,lty=3)
+#
+         arrows(1:ndays-d,es,1:ndays-d,esF,col=cl+1:ndays,length=0.08, lwd=lwda)
+                #
+         eind <- grind[ ,2,1]  #c(5,9,10)
+                  tst(eind)
+         cl <- ndays
+         esF <- predicted(eind,coef)
+         es <- esF-coef[,eind]
+#         lines(1:ndays,es,col=7,lwd=3)
+#         lines(1:ndays,esF,col=7,lwd=3)
+delta <- c(coef[,eind[1]],rep(0,length(eind)-1))
+         lines(1:ndays,delta+es,col=2,type="b",lwd=1,lty=3)
+#
+         arrows(1:ndays+d,es,1:ndays+d,esF,col=cl+1:ndays,length=0.08, lwd=lwda)
+       cfs <- 1:(ndays*ntreat)
+       ltext <- paste(sprintf("% .1f",cf[cfs]),"|",names(cf)[cfs])
+       legend("topleft",col=cfs,lwd=2,legend=ltext, bty="n",cex=0.75)
+       } else {
+#
+### second level
+#
+
+         eind <- grind[ ,1,2]  # c(2,6,7)
+         tst(eind)
+         cl <- 0
+         esF <- predicted(eind,coef)
+         es <- esF-coef[,eind]
+#         lines(1:ndays,es,col=7,lwd=3)
+#         lines(1:ndays,esF,col=7,lwd=3)
+abline(h=predicted(1,coef),lwd=0.5,col=8)
+delta <- c(coef[,eind[1]],rep(0,length(eind)-1))
+         lines(1:ndays,delta+es,col=8,type="b",lwd=1,lty=3)
+#
+         arrows(1:ndays-d,es,1:ndays-d,esF,col=cl+1:ndays,length=0.08, lwd=lwda)
+                #
+         eind <- grind[ ,2,2]  #c(8,11,12)
+         cl <- ndays
+         esF <- predicted(eind,coef)
+         es <- esF-coef[,eind]
+#         lines(1:ndays,es,col=7,lwd=3)
+#         lines(1:ndays,esF,col=7,lwd=3)
+delta <- c(coef[,eind[1]],rep(0,length(eind)-1))
+         lines(1:ndays,delta+es,col=2,type="b",lwd=1,lty=3)
+#
+         arrows(1:ndays+d,es,1:ndays+d,esF,col=cl+1:ndays,length=0.08, lwd=lwda)
+
+         cfs <- 1:(ndays*ntreat)
+       ltext <- paste(sprintf("% .1f",cF[cfs]),"|",names(cF)[cfs])
+       legend("topleft",col=cfs,lwd=2,legend=ltext, bty="n",cex=0.75)
+        }
+       #abline(h=sum(cf[c(1,4,5,10)]),xpd=NA, col=6)
+#       e <- sum(cf[c(1,3,4)])
+#              points(3,e,col=6)
+#       arrows(3,e,3,e+cf[6],col=6,length=0.08, lwd=lwda)
+
+      }
+    }
+#
+################        arrows(3+2*d,predicted(12,coef)-coef[12],3+2*d,predicted(6,coef),lwd=4,col=7)
+#ind <- c(8,11,12)
+#indc <- c(5,9,10)
+#for(i in 1:3){
+#    tst(predicted(ind[i],coef))
+#    tst(predicted(indc[i],coef))
+#    arrows(i+2*d,predicted(ind[i],coef)-coef[ind[i]],
+#    i+2*d,predicted(ind[i],coef),lwd=4,col=7)
+#    }
+###############
+#abline(h=c(4,4.06))
+    if(coef.plt) {
+      par(mfrow=c(6,7),mar=c(1,1,2,2),new=TRUE)
+      with(coefs, {
+      xlim <- range(c(cC[-1], cF[-1]))
+      plot(cC[-1],cF[-1],col=2:nrow(coefs),
+      xlim = xlim,
+      ylim = xlim,
+      pty = "s",
+       pch=16,new=TRUE,axes=FALSE, asp=1)
+      axis(3)
+      axis(4)
+      mtext("C", side=1, cex=0.7, line=0)
+      mtext("F", side=2, cex=0.7, las = 2,line=0.3)
+      abline(h=0,v=0,lwd=0.5,col=8)
+      box()
+      #abline(c(0,1),col=8)
+      }
+      )
+    }
+    invisible(coefs)
+}
+varname <- rownames(exprs)[10]#[13]
+t(fit1[varname,]$coefficients)
+coef=fit1[varname,]$coefficients
+bla <- plot.interactions(varname, coef=fit1[varname,]$coefficients,
+   coef.plt=TRUE)
+#bla
+#predicted(1, coef)
+#predicted(1:12,coef)
+cbind(t(coef),1:ncol(coef))
+
+@
+
+
+
+Inspect the varietyF:day67
+
+<<>>=
+varname <- "Vitvi14g01639"
+bla <- plot.interactions(varname, coef=fit1[varname,]$coefficients,
+   coef.plt=TRUE)
+bla
+@
+
+Graphical interpretation of coefficients:
+
+<<>>=
+varname <- rownames(exprs)[10]
+coef=fit1[varname,]$coefficients
+coefs <- plot.interactions(varname, coef=fit1[varname,]$coefficients,
+   coef.plt=TRUE)
+coefs
+@
+
+<<>>=
+varname <- rownames(exprs)[13]
+coef=fit1[varname,]$coefficients
+coefs <- plot.interactions(varname, coef=fit1[varname,]$coefficients,
+   coef.plt=TRUE)
+coefs
+@
+
+Plot coefficients
+
+<<>>=
+par(mfrow=c(1,2),mar=c(4,5,3,3))
+with(coefs, plot(cC, cF.plus.C, col=1:nrow(coefs), pch=16))
+abline(h=0,v=0,col=8)
+abline(c(0,1),col=8)
+with(coefs, plot(cC[-1], cF.plus.C[-1], col=2:nrow(coefs), pch=16))
+abline(h=0,v=0,col=8)
+@
+
+Combined plot
+<<>>=
+plot.interactions(varname, coef=fit1[varname,]$coefficients,
+ coef.plt = TRUE )
+@
+
+<<>>=
+plot.interactions(varname)
+@
+
+\subsection{Top tables}
+<<>>=
+tt <- topTable(fit1)
+tt
+@
+
+Top table for difference of variety reaction to stress in day 67
+
+<<>>=
+comps[12,]
+tt <- topTable(fit1,coef=12)
+head(tt)
+@
+
+
+
+<<>>=
+varname <- rownames(tt)[1]
+fit1[varname,]$coefficients
+plot.interactions(varname)
+plot.interactions(varname, coef=fit1[varname,]$coefficients, coef.plt=TRUE)
+
+@
+
+<<>>=
+varname <- rownames(tt)[2]
+fit1[varname,]$coefficients
+plot.interactions(varname)
+plot.interactions(varname, coef=fit1[varname,]$coefficients, coef.plt=TRUE)
+@
+
+<<>>=
+varname <- rownames(tt)[3]
+fit1[varname,]$coefficients
+plot.interactions(varname)
+plot.interactions(varname, coef=fit1[varname,]$coefficients, coef.plt=TRUE)
+@
+
+<<>>=
+par(mfrow=c(3,3),mar=c(4,4,2,0.5))
+select <- 2:6
+for(i in 1:9){
+varname <- rownames(tt)[i]
+coef <- fit1[varname,]$coefficients
+ind <- grep("F",colnames(coef))
+coef[-ind]
+coef[ind]
+plot(coef[-ind][select],coef[ind][select],col=select,
+   pch=16,
+   xlab="C",ylab="F",
+   ylim=c(-2,2),
+   xlim=c(-2,2),
+   type="n"
+   )
+rect(-3,-1,3,1, col=rgb(.95,.95,.95,.80),border=NA)
+rect(-1,-3,1,3, col=rgb(.95,.95,.95,.80),border=NA)
+
+points(coef[-ind][select],coef[ind][select],col=select,
+   pch=16,
+      cex=c(1,1,1,1,2)*1.5
+      )
+title(varname)
+if(i==1)legend("topright",bty="n",col=select,pch=rep(16,5) ,legend=colnames(coef)[-ind][select], cex=.7,pt.cex=1)
+abline(v=0,h=0,col=8,lwd=0.5)
+box()
+#polygon(c(-2,-1,-1, 1, 1, 2, 2, 1, 1,-1,-1,-2,-2),
+#        c(-1,-1,-2,-2,-1,-1, 1, 1, 2, 2, 1, 1,-1),
+#        col=rgb(.95,.95,.95,.50))
+
+
+#abline(h=-1:1,v=-1:1, col=8)
+#abline(h=0,v=0)
+}
+@
+
+<<>>=
+par(mfrow=c(3,3),mar=c(4,4,2,0.5))
+select <- 1:6
+for(i in 1:9){
+varname <- rownames(tt)[i]
+coef <- fit1[varname,]$coefficients
+ind <- grep("F",colnames(coef))
+coef[-ind]
+coef[ind]
+plot(coef[-ind][select],coef[ind][select],col=select,
+   pch=16,
+   xlab="C",ylab="F",
+#   ylim=c(-2,2),
+#   xlim=c(-2,2),
+   type="n"
+   )
+rect(-10,-1,10,1, col=rgb(.95,.95,.95,.90),border=NA)
+rect(-1,-10,1,10, col=rgb(.95,.95,.95,.90),border=NA)
+box()
+points(coef[-ind][select],coef[ind][select],col=select,
+   pch=16,
+      cex=c(1,1,1,1,2)*1.5
+      )
+title(varname)
+if(i==1)legend("topright",bty="n",col=select,pch=rep(16,5) ,legend=colnames(coef)[-ind][select], cex=.7,pt.cex=1.5)
+abline(v=0,h=0,col=8,lwd=0.5)
+#polygon(c(-2,-1,-1, 1, 1, 2, 2, 1, 1,-1,-1,-2,-2),
+#        c(-1,-1,-2,-2,-1,-1, 1, 1, 2, 2, 1, 1,-1),
+#        col=rgb(.95,.95,.95,.50))
+
+
+#abline(h=-1:1,v=-1:1, col=8)
+#abline(h=0,v=0)
+}
+@
+\clearpage
+\section{Coefficients}
+
+Model design
+<<>>=
+design <- with(pd, model.matrix(~ variety * day * treat))
+head(design)
+@
+Linear models
+<<>>=
+fit1 <- lmFit(exprs, design)
+fit1 <- eBayes(fit1)
+head(fit1[1:6,]$coefficients)
+@
+
+\section{Responses of interest}
+
+At the meeting 4. 12. 2020 we decided that the interesting responses are those
+which
+ have
+
+\begin{enumerate}
+   \item show small difference between WW and WS at 11 in F and C
+   \item WW have similar response in C and in F
+\end{enumerate}
+
+
+
+From this we prepare filter conditions:
+ for some positive $\delta$:
+
+ \begin{enumerate}
+   \item (abs(treatWS) < delta (blue in C) ) AND (blue in F)
+   \item red and green in F (F:34 and F:67) < delta
+ \end{enumerate}
+
+
+<<>>=
+which <- ncol(fit1$coefficients)
+(cname <- colnames(fit1$coefficients)[which])
+cnames <- colnames(fit1$coefficients)
+ind <- grep("varietyF",cnames)
+(cname <- cnames[-ind])
+@
+
+Filtering is performed by effect size for each coefficient:
+
+Distributions of coefficients:
+
+<<>>=
+cf <- fit1$coefficients
+nc <- ncol(cf)
+delta <- 0.2
+par(mfrow=c(4,3))
+for(i in 1:nc){
+boxplot(abs(cf[,i]), log="y", main=colnames(cf)[i])
+abline(h=delta)
+}
+@
+
+
+
+<<>>=
+(delta <- .delta)
+(alpha1 <- .alpha1)
+cf <- fit1$coefficients
+dim(cf)
+##
+# C Blue
+f1 <- abs(cf[,"treatWS"]) < delta
+table(f1)
+tf1 <- topTable(fit1,coef="treatWS",n=Inf)$adj.P.Val>alpha1
+table(f1,tf1)
+# F Blue
+f2 <- abs(cf[,"varietyF:treatWS"]) < delta
+table(f2)
+table(f1,f2)
+tf2 <- topTable(fit1,coef="varietyF:treatWS",n=Inf)$adj.P.Val>alpha1
+table(f2,tf2)
+@
+
+<<>>=
+# C red
+fc34 <- abs(cf[,"day34"]) < delta
+table(fc34)
+tfc34 <- topTable(fit1,coef="day34",n=Inf)$adj.P.Val>alpha1
+table(fc34,tfc34)
+@
+
+<<>>=
+# C green
+fc67 <- abs(cf[,"day67"]) < delta
+table(fc67)
+tfc67 <- topTable(fit1,coef="day67",n=Inf)$adj.P.Val>alpha1
+table(fc67,tfc67)
+plot(cf[,"day67"][fc67])
+@
+
+
+
+<<>>=
+# F red
+f3 <- abs(cf[,"varietyF:day34"]) < delta
+table(f3)
+@
+
+
+<<>>=
+# F green
+f4 <- abs(cf[,"varietyF:day67"]) < delta
+table(f4)
+table(f3,f4)
+@
+
+
+<<>>=
+ftable(c11WSWW=f1,f11WSWW=f2,CF34ww=f3,CF67ww=f4)
+filter <- f1&f2&f3&f4
+table(filter)
+@
+
+WS larger than delta2
+
+<<>>=
+# C Magenta
+deltaWS <- delta
+fWSC67 <- abs(cf[,"day67:treatWS"]) > deltaWS
+table(fWSC67)
+plot(cf[,"day67:treatWS"][fWSC67])
+@
+
+<<>>=
+# F Magenta
+deltaWS <- 1
+fWSF67 <- abs(cf[,"varietyF:day67:treatWS"]) > deltaWS
+table(fWSF67)
+plot(cf[,"varietyF:day67:treatWS"][fWSF67])
+table(fWSF67,fWSC67)
+@
+
+Combine restrictions for WW and WS:
+
+<<>>=
+table(filter)
+table((fc34 & fc67))
+filter2 <- filter & (fc34 & fc67)
+table(filter2)
+#
+filter3 <- filter2 & (fWSF67 | fWSC67)
+table(filter3)
+par(mfrow=c(2,2))
+plot(cf[,"day67:treatWS"][filter&fWSC67], main="C 67 WS")
+plot(cf[,"day34"][filter&fWSC67],cf[,"day67:treatWS"][filter&fWSC67], main="C 67 WS",xlim=c(-3,3))
+plot(cf[,"varietyF:day67:treatWS"][filter&fWSF67], main="C 67 WS")
+plot(cf[,"varietyF:day67:treatWS"][filter2&fWSF67], main="C 67 WS")
+@
+
+<<>>=
+filter <- filter3
+@
+
+
+Remains \Sexpr{table(filter)[2]} genes.
+They will be tested for differences to WS in C at 67  and
+WS in F at 67.
+
+Model design
+<<>>=
+design <- with(pd, model.matrix(~ variety * day * treat))
+head(design)
+dim(design)
+@
+Linear model on selected genes
+<<>>=
+exprsf <- exprs[filter,]
+dim(exprsf)
+fit2 <- lmFit(exprsf, design)
+fit2 <- eBayes(fit2)
+head(fit2[1:6,]$coefficients)
+fit1 <- fit2
+fit <- fit1
+@
+
+\clearpage
+
+Expressions in \code{exprs}, phenodata in \code{pd}.
+
+<<>>=
+(alpha <- .alpha2)
+maxnames <- Inf
+out <- ""
+
+cnames <- colnames(fit$coefficients)
+which <- 12
+selcoef <- c(5,12)
+for(which in selcoef){
+  cname <- cnames[which]
+  out <- paste(out,
+  "\\clearpage\n\\subsection{",cname," }\n")
+  #comps[8,]
+  tt <- topTable(fit,coef=which, number=Inf)
+  cat("\n----------  ",cname, alpha,"\n")
+  filter <- tt$adj.P.Val < alpha
+  print(table(filter))
+  cat("\n\n")
+  head(tt)
+  varnames <- rownames(tt)[filter][1:min(maxnames,sum(filter))]
+  print(varnames)
+  my.write.table(data.frame(tt[varnames,],fit$coefficients[varnames,]),
+  file=file.path(.oroot,"selectedGenesF67WS.txt"), sep="\t", col.names=NA)
+#  varname <- varnames[1]
+  for ( varname in varnames)
+ out <- paste(out,knit_child("../doc/20aa_interaction-plots.rnw",quiet=TRUE))
+}
+
+@
+\Sexpr{out}
+
+<<>>=
+which <- ncol(fit$coefficients)
+cname <- colnames(fit$coefficients)[which]
+cname
+
+@
+
+%% \clearpage
+%% \section{Dodatno \Sexpr{cname} }
+%% %Top table  of difference of F reaction to stress in day 67 (compared to C).
+%%
+%% <<>>=
+%% which <- ncol(fit[1:6,]$coefficients)
+%% which
+%% #comps[8,]
+%% tt <- topTable(fit,coef=which, number=Inf)
+%% alpha <- 0.05
+%% table(tt$adj.P.Val < alpha)
+%% head(tt)
+%%
+%% @
+%%
+%% Expressions in \code{exprs}, phenodata in \code{pd}
+%%
+%% <<eval=FALSE,result="hide">>=
+%% out <- ""
+%% filter <- tt$adj.P.Val < alpha
+%% for ( varname in rownames(tt)[filter])
+%% out <- paste(out,knit_child("20aa_interaction-plots.rnw",quiet=TRUE))
+%% @
+%% \Sexpr{out}

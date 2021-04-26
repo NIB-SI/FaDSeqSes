@@ -1,0 +1,153 @@
+% -*- TeX:Rnw:UTF-8 -*-
+% ----------------------------------------------------------------
+% .R knitr file  ************************************************
+% ----------------------------------------------------------------
+%%
+<<echo=FALSE>>=
+###############################################
+##                                           ##
+## (c) Andrej Blejec (andrej.blejec@nib.si)  ##
+##                                           ##
+###############################################
+@
+<<echo=FALSE,results='hide'>>=
+options(width=70)
+@
+
+%\section{Boxplots and profiles}
+Overview of expressions:
+
+<<>>=
+boxplts <- function(minsd=0,maxsd=Inf, maxprof=200){
+par(mfrow=c(1,2), mar=c(2,7,1,0), oma=c(1,0,0,0))
+x <- t18
+boxplot(x,
+    horizontal = TRUE, las = 2,
+    col = rep(1:(ncol(x)/4),each = 4),
+    ylim = range(t18,t19),
+    main = 2018,
+    cex.axis = 0.75
+    )
+    nl <- 30
+    sds <- apply(x,1,sd)
+sel <- which(minsd < sds & sds <= maxsd)
+nsel <- length(sel)
+if(length(sel) > maxprof) sel <- sel[1:maxprof]
+for(i in 1:length(sel))
+    lines(x[sel[i],],1:ncol(x) , col=i, lwd=2)
+y <- substr(colnames(x),1,1)
+abline(h=which(y[-1]!=y[-length(y)])[1]+0.5, col=8, lwd=2, lty=2, xpd=TRUE)
+mtext(paste(minsd,"< sd <",maxsd,": n =",length(sel),"/", nsel),1, line=2)
+#
+x <- t19
+boxplot(x,
+    horizontal = TRUE, las = 2,
+    col = rep(1:(ncol(x)/4),each = 4),
+    ylim = range(t18,t19),
+    main = 2019,
+    cex.axis = 0.75
+    )
+        sds <- apply(x,1,sd)
+sel <- which(minsd < sds & sds < maxsd)
+nsel <- length(sel)
+if(length(sel) > maxprof) sel <- sel[1:maxprof]
+for(i in 1:length(sel))
+   lines(x[sel[i],],1:ncol(x) , col=i, lwd=2)
+y <- substr(colnames(x),1,1)
+abline(h=which(y[-1]!=y[-length(y)])[1]+0.5, col=8, lwd=2, lty=2, xpd=TRUE)
+mtext(paste(minsd,"< sd <",maxsd,": n =",length(sel),"/", nsel),1, line=2)
+}
+@
+\clearpage
+<<include=FALSE, message=FALSE, warnings=FALSE, cache=FALSE>>=
+opts_chunk$set(echo=FALSE)
+@
+<<>>=
+minsd <- 5
+maxsd <- Inf
+figlbl <- paste("Boxplots with profiles of most variable genes (",
+        minsd,
+        "< sd <=",
+        maxsd,")")
+        figlbl
+@
+
+<<fig.height=8,fig.cap=figlbl, echo=FALSE>>=
+boxplts(minsd,maxsd)
+@
+
+The measurements are normalized to similar scales, with a little bit more outliers on the high side (which is not unexpected). In the profiles some switched expressions between varieties can be noticed.
+
+\clearpage
+
+<<>>=
+minsd <- 4
+maxsd <- 5
+figlbl <- paste("Boxplots with profiles of most variable genes (",
+        minsd,
+        "< sd <=",
+        maxsd,")")
+@
+
+<<fig.height=8,fig.cap=figlbl, echo=FALSE>>=
+boxplts(minsd,maxsd)
+@
+\clearpage
+
+<<>>=
+minsd <- 3
+maxsd <- 4
+figlbl <- paste("Boxplots with profiles of moderately variable genes (",
+        minsd,
+        "< sd <",
+        maxsd,")")
+@
+
+<<fig.height=8,fig.cap=figlbl, echo=FALSE>>=
+boxplts(minsd,maxsd)
+@
+
+<<>>=
+minsd <- 2
+maxsd <- 3
+figlbl <- paste("Boxplots with profiles of moderately variable genes (",
+        minsd,
+        "< sd <",
+        maxsd,")")
+@
+
+<<fig.height=8,fig.cap=figlbl, echo=FALSE>>=
+boxplts(minsd,maxsd)
+@
+
+
+<<>>=
+minsd <- 1
+maxsd <- 2
+figlbl <- paste("Boxplots with profiles of low variable genes (",
+        minsd,
+        "< sd <",
+        maxsd,")")
+@
+
+<<fig.height=8,fig.cap=figlbl, echo=FALSE>>=
+boxplts(minsd,maxsd)
+@
+
+
+<<>>=
+minsd <- 0
+maxsd <- 1
+figlbl <- paste("Boxplots with profiles of least variable genes (",
+        minsd,
+        "< sd <",
+        maxsd,")")
+@
+
+<<fig.height=8,fig.cap=figlbl, echo=FALSE>>=
+boxplts(minsd,maxsd)
+@
+
+<<include=FALSE, message=FALSE, warnings=FALSE, cache=FALSE>>=
+opts_chunk$set(echo=TRUE)
+@ 

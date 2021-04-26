@@ -1,0 +1,1012 @@
+% -*- TeX:Rnw:UTF-8 -*-
+% ----------------------------------------------------------------
+% .R knitr file  ************************************************
+% ----------------------------------------------------------------
+%%
+% \VignetteIndexEntry{}
+% \VignetteDepends{}
+% \VignettePackage{}
+\documentclass[a4paper,12pt]{article}
+%\usepackage[slovene]{babel}
+\usepackage[utf8]{inputenc} %% must be here for Sweave encoding check
+\input{abpkg}
+\input{abcmd}
+\input{abpage}
+\usepackage{pgf,pgfarrows,pgfnodes,pgfautomata,pgfheaps,pgfshade}
+\usepackage{amsmath,amssymb}
+\usepackage{colortbl}
+
+\input{mysweave}
+
+<<include=FALSE, message=FALSE, warnings=FALSE, cache=FALSE>>=
+require(knitr)
+render_sweave()
+
+
+opts_knit$set( concordance=TRUE
+    , root.dir = getwd()
+    , unnamed.chunk.label = "ch"
+    , width = 60
+)
+opts_knit$get("root.dir")
+@
+
+<<additional arguments, include=FALSE, echo=FALSE, message=FALSE, warnings=FALSE>>=
+addArgs <- NULL
+addArgs <- c(.delta=1,.alpha1=0.05,.alpha2=0.10)
+addArgs <- c(.alpha=0.05,.r="r")
+@
+
+<<pISA projects root, include=FALSE>>=
+.pISAloc <- gsub("/_p_.*","",getwd())
+@
+
+<<eval=FALSE,include=FALSE>>=
+require(knitr)
+if(interactive()) knit(file.path(.pISAloc,"pISA-initialize.Rnw"))
+
+@
+
+<<pISA initialize, results='hide', include=FALSE,child=file.path(.pISAloc,"pISA-initialize.Rnw")>>=
+@
+
+<<my-utility-functions,results='hide',include=FALSE>>=
+my.summary <-
+function(x,...){
+    dims <- dimnames(x)
+    x <- as.data.frame((lapply(x,  factor)))
+    dimnames(x) <- dims
+    summary(x)
+}
+#my.summary(phdata)
+#
+
+if(!exists("addObject")) {
+addObject <- function(name=NULL,desc="",x=my.objects){
+if(is.null(name)) x <- data.frame(name="",description="",class="", lenght=NA,ncol=NA) else {
+nc <- ncol(name)
+if(is.null(nc)) nc <- NA
+x <- rbind(x,c(deparse(substitute(name)), desc, class(name), length(name), nc))
+x <- x[x$name!="",]
+}
+rownames(x) <- x[,1]
+return(x)
+}
+}
+if(FALSE){
+(my.objects <- addObject())
+(my.objects <- addObject(t18,"Transcripts for 2018"))
+}
+@
+
+<<set specific arguments,results='hide',include=FALSE,message=FALSE,warning=FALSE,echo=FALSE>>=
+# Argumenti
+# 1. Ime izvorne datoteke za analizo
+# 2. Izbira genov (ime stolpca v featuredata)
+#
+ .callName <- args[1]
+for(i in 1:length(addArgs) ) {
+    assign(names(addArgs)[i],addArgs[i])
+    if( interactive() ) cat(names(addArgs[i])," ",get(names(addArgs[i])),"\n")
+    }
+#getwd()
+#args
+@
+
+\setkeys{Gin}{width=0.8\textwidth}  % set graphicx parameter
+\usepackage{lmodern}
+\input{abfont}
+
+% ----------------------------------------------------------------
+\begin{document}
+%% Sweave settings for includegraphics default plot size (Sweave default is 0.8)
+%% notice this must be after begin{document}
+%%% \setkeys{Gin}{width=0.9\textwidth}
+% ----------------------------------------------------------------
+\title{Expression analysis - water potential\\
+       \Sexpr{paste(names(addArgs),addArgs,collapse=" ",sep="=")}
+       }
+\author{A. Blejec}
+%\address{}%
+%\email{}%
+%
+%\thanks{}%
+%\subjclass{}%
+%\keywords{}%
+
+%\date{}%
+%\dedicatory{}%
+%\commby{}%
+\maketitle
+% ----------------------------------------------------------------
+%\begin{abstract}
+%
+%\end{abstract}
+% ----------------------------------------------------------------
+\clearpage
+\tableofcontents
+<<Author:,echo=FALSE>>=
+###############################################
+##                                           ##
+## (c) Andrej Blejec (andrej.blejec@nib.si)  ##
+##                                           ##
+###############################################
+@
+<<initialize,echo=FALSE,include=FALSE,message=FALSE,warning=FALSE>>=
+options(width=60)
+library(Hmisc)
+library(amisc)
+library(Biobase)
+#library(xlsReadWrite)
+library(xtable)
+#library(MASS)
+library(lattice)
+library(reshape2)
+
+@
+\clearpage
+\section{Task}
+
+Final document in folder  \file{/reports}:
+<<>>=
+fileName(outputFile)
+
+@
+
+\clearpage
+\section{Information from pISA}
+
+Data directory
+
+<<>>=
+.inroot
+
+@
+
+Results directory
+
+<<>>=
+.oroot
+@
+
+<<echo=FALSE>>=
+catln("project:\t",     .pName)
+catln("Investigation: ",.iName)
+catln("Study:         ",.sName)
+catln("Assay:         ",.aName)
+@
+\clearpage
+
+<<echo=FALSE, include=FALSE>>=
+.testing <- TRUE
+tst <- function(x, force=FALSE, ...) {
+if(.testing|force) {
+    cat("-->", deparse(substitute(x)),..., "\n")
+     print(x)
+     }
+invisible(x)
+}
+coef <- 1:5
+tst(coef)
+.testing <- FALSE
+tst(coef,TRUE,"Za poskus force=TRUE")
+@
+
+
+\section{Data}
+
+Priporočljivo je najprej prebrati phenodata in feature-data, potem pa podatke.
+To omogoča izbor spremenljivk in vzorcev takoj za tem, ko podatke preberemo.
+
+
+%% <<eval=!TRUE,include=TRUE>>=
+%% out <- "From: 10a-ReadData.Rnw\n"
+%% out <- paste(out,knit_child(file.path(".","10a-ReadData.Rnw"),quiet=TRUE))
+%% @
+%
+%\Sexpr{out}
+
+<<results='hide'>>=
+cat(knit_child(file.path("../doc","10a_Read-Data.Rnw"),quiet=TRUE))
+@
+
+List of data objects:
+<<>>=
+my.objects
+@
+
+Factor for days within the year
+<<>>=
+pdata1819$day <- factor(as.character(pdata1819$day))
+@
+\subsection{Water potential}
+
+On Dec 12 we decided to include water stress as a prediction factor.
+
+In addition to expression data, we need water stress data.
+
+<<>>=
+(wsfn <- getMeta(.adesc, "Water potential data"))
+wpdata <- read.table(file.path(.aroot,wsfn), sep="\t",
+    header=TRUE,
+    row.names=1)
+str(wpdata)
+@
+
+Tidy factors and dates.
+Be careful, variety in the header is misspelled:
+
+<<>>=
+names(wpdata)
+head(wpdata)
+@
+
+<<>>=
+X <- wpdata
+X$treat <- factor(X$treatment,levels=c("WW","WS"))
+X$variety <- factor(X$variey)
+# Date of sampling might be useful as well
+require(lubridate)
+X$date <- as_date(X$date, format="%d.%m.%Y")
+X$year <- year(X$date)
+table(data.frame(X$date,"Count"=1))
+str(X)
+@
+
+Order  by date
+
+<<>>=
+X <- X[order(X$date),]
+@
+
+<<>>=
+wpdata <- X
+@
+Tidy dates ...
+<<>>=
+table(wpdata$date,wpdata$variety)
+table(pdata1819$date)
+pdata1819$date <- as_date(pdata1819$Date, format="%d.%m.%Y")
+table(pdata1819$date)
+pdata1819$Year <- factor(paste0("20",pdata1819$year))
+@
+
+Water potential and transcriptomics are not measured at the same dates.
+We will interpolate the water potential to matching dates.
+
+<<>>=
+wpas <- NULL
+par(mfrow=c(2,2),mar=c(3,4,2,1))
+for( yr in unique(wpdata$year)){
+for (vari in levels(wpdata$variety)) {
+  with(wpdata, {
+    filter <- (wpdata$year==yr) & (variety== vari)
+    plot(date[filter], SWP.mean[filter], type="n",ylim=range(SWP.mean))
+    for(tr in levels(treat)){
+    select <- filter & (treat %in% tr)
+    lines(date[select],SWP.mean[select],type="b",pch=16,col=treat[select])
+    title(paste(yr,vari))
+    unidata <- unique(pdata1819$date[pdata1819$Year==yr])
+    abline(v=unidata, col=3)
+    wpa <- (approx(date[select],SWP.mean[select],unidata))
+#    print(data.frame(wpa))
+#    if(is.null(wpas)) wpas <- data.frame(wpa) else
+    wpas <<- rbind(wpas,data.frame(wpa,yr,
+    variety=substr(vari,1,1),
+    treat=tr))
+    points(wpa,col=3,cex=2)
+    }
+    })
+  }
+}
+colnames(wpas)[1:2] <- c("date","swp")
+#rownames(wpas) <- wpas[,1]
+#,by.x=c("date","variety","treat"),by.y=c("date","variety","treat"))
+@
+@
+
+Order water potential data by date
+
+<<>>=
+diff(wpas$date)
+wpas <- wpas[order(wpas$date),]
+diff(wpas$date)
+@
+
+Convert treatment and variety into factors
+<<>>=
+(wpas$treat <- factor(wpas$treat, levels=c("WW","WS")))
+(wpas$variety <- factor(wpas$variety))
+
+@
+
+<<>>=
+with(wpas,ftable(yr,variety,treat,date))
+
+@
+
+Check date consistency
+<<>>=
+all(pdata1819$date %in% wpas$date)
+
+@
+
+Add interpolated WP values to measured date to phenodata.
+
+<<>>=
+mapdate <- match(pdata1819$date,wpas$date)
+pdata1819w <- pdata1819
+pdata1819w$swp <- wpas[mapdate,c("swp")]
+dim(pdata1819w)
+head(pdata1819w)
+@
+
+<<>>=
+all(colnames(t1819)==rownames(pdata1819w))
+@
+
+
+One plot:
+
+<<>>=
+t1819[1,]
+(varname <- rownames(t1819)[1])
+@
+
+<<>>=
+.testing <- !TRUE
+pd <- pdata1819w
+par(mfrow=c(2,2),mar=c(3,4,2,1))
+(varname <- rownames(t1819)[1])
+(yr <- unique(pd$year)[1])
+(vari  <-  levels(pd$variety)[1])
+for( yr in unique(pd$year)){
+for (vari in levels(pd$variety)) {
+    filter <- (pd$year %in% yr) & (pd$variety %in% vari)
+    print(filter)
+    print(pd$date[filter])
+(    y <- unlist(t1819[varname,]))
+  with(pd, {
+    plot(pd$swp[filter], y[filter],
+       type="p",
+       bg=pd$treat[filter],
+       pch=21,
+       cex=1,
+       col="white",
+       xlim=range(pd$swp)
+       )
+    for(i in 1:length(levels(treat))){
+    tr <- levels(pd$treat)[i]
+    select <- filter & (pd$treat %in% tr)
+    fit <- lm(y[select]~pd$swp[select])
+    print(fit)
+    abline(fit,col=i)
+#    lines(date[select],swp[select],type="b",pch=16,col=treat[select])
+    title(paste(varname, yr, vari))
+    }
+    })
+  }
+}
+.testing <- FALSE
+@
+
+
+\section{Expression and water poential analysis}
+
+<<>>=
+varname <- rownames(t1819)[10]
+pd <- pdata1819
+(y <- unlist(t1819[varname,]))
+means <- tapply(y,pd[,c("date","treat","variety")],mean,na.rm=TRUE)
+means
+tfilter <- wpas$treat %in% "WW"
+vfilter <- wpas$variety %in% "C"
+(swp <- wpas$swp[as.character(wpas$date) %in% dimnames(means)[[1]]])
+
+@
+
+<<>>=
+varname <- rownames(t1819)[10]
+#varname <- rownames(t1819)[runif(1,1,10000)]
+(y <- unlist(t1819[varname,]))
+means <- tapply(y,pd[,c("date","treat","variety")],mean,na.rm=TRUE)
+swps <- tapply(pd$swp,pd[,c("date","treat","variety")],unique)
+means
+ylim <- range(means, na.rm=TRUE)
+xlim <- c(min(wpas$swp,-1.6,na.rm=TRUE), max(wpas$swp,0, na.rm=TRUE))
+vlvls <- unique(wpas$variety)
+tlvls <- rev(unique(wpas$treat))
+cols <- c(4,2)
+pchs <- c(16,16)
+plot(1,1, #wpas$swp[tfilter & vfilter], means[,"WS",vlvls[i]],
+      ylim=ylim,
+      xlim=-rev(xlim),
+      xlab = "SWP.mean",
+      ylab = "Mean expression",
+      type="n",
+      axes=FALSE
+      )
+axis(2)
+box()
+axis(1,at=seq(0,2,0.2),labels=-(seq(0,2,0.2)))
+title(varname)
+legend("topright", bty="n", pch=pchs, col=cols,legend <- vlvls)
+#
+for(i in 1:length(vlvls)){
+for( j in 1:length(tlvls)){
+tfilter <- wpas$treat %in% tlvls[j]
+vfilter <- wpas$variety %in% vlvls[i]
+yy <- means[as.character(wpa$date),tlvls[j],vlvls[i]]
+wpa <- wpas[tfilter & vfilter,]
+all(wpa$date==names(yy))
+points(-wpa$swp, yy,
+      col = cols[j],
+      pch = pchs[j]
+      )
+      }
+
+}
+
+@
+\subsection{Expression vs water potential}
+
+<<>>=
+plot.ewp <- function(varname,cols=c(4,2),pchs=c(1,16),lwd=c(1,2,1,2)
+     ,model=c("*"), verbose=FALSE, exprs=t1819, pd=pdata1819,ylim=NULL, cex=NULL){
+if(verbose) print(varname)
+(y <- unlist(exprs[varname,]))
+means <- tapply(y,pd[,c("date","treat","variety")],mean,na.rm=TRUE)
+#print(means)
+swps <- tapply(wpas$swp,wpas[,c("date","treat","variety")],function(x) x[1])
+#print(swps)
+if(is.null(ylim)) ylim <- range(means, na.rm=TRUE)
+xlim <- c(min(wpas$swp,-1.6,na.rm=TRUE), max(wpas$swp,0, na.rm=TRUE))
+vlvls <- levels(wpas$variety)
+tlvls <- levels(wpas$treat)
+#cols <- c(4,2)
+#pchs <- c(1,16)
+plot(1,1, #wpas$swp[tfilter & vfilter], means[,"WS",vlvls[i]],
+      ylim=ylim,
+      xlim=rev(xlim),
+      xlab = "SWP.mean",
+      ylab = "Mean expression",
+      type="n",
+      axes=TRUE
+      )
+title(varname,model)
+legend("topright", bty="n", pch=pchs, col=rep(cols,each=2),lwd=lwd,
+       legend= outer(tlvls,vlvls,paste))
+#
+allx <- NULL
+ally <- NULL
+fits <- list(name=varname)
+for(i in 1:length(vlvls)){
+#for( j in 1:length(tlvls)){
+#tfilter <- wpas$treat %in% tlvls[j]
+vfilter <- wpas$variety %in% vlvls[i]
+wpa <- wpas[vfilter,]
+means[,,vlvls[i]]
+mns <- melt(means[,,vlvls[i]])
+mns
+wp <- melt(swps[,,vlvls[i]])
+wp
+all(wpa$date==dimnames(mns)$date)
+yy <- mns[,"value"]
+xx <- wp[,"value"]
+#print(cbind(xx,yy))
+if(is.null(cex)) cex <- 0.5+as.numeric(mns$date)/3
+points(xx , yy,
+      col = cols[i],
+      pch = pchs[as.numeric(mns$treat)]
+     , cex=cex
+      )
+#      }
+  xx <- xx
+  if(model=="") fit <- lm(yy~xx)
+  if(model=="+") fit <- lm(yy~xx+mns$treat)
+  if(model=="*") fit <- lm(yy~xx*mns$treat)
+  if(verbose) print(summary(fit))
+  coef <- fit$coefficients
+#  print(coef)
+  if(length(coef)<3) coef[3] <- 0
+  if(length(coef)<4) coef[4] <- 0
+  abline(coef[1:2], col=cols[i],lwd=1)
+  abline(coef[1:2]+coef[3:4],col=cols[i],lwd=2,lty=1)
+  ally <- c(ally,yy)
+  allx <- c(allx,xx)
+  fits[[vlvls[i]]] <- fit
+}
+fit <- lm(ally~allx)
+fits[["all"]] <- fit
+fits[["r"]] <- cor(ally,allx,use="complete")
+if(verbose) print(summary(fit))
+abline(fit$coefficients,lwd=2)
+#points(-swps,means,cex=1.5)
+invisible(fits)
+}
+@
+
+<<>>=
+par(mfrow=c(2,3))
+#
+varname <- rownames(t1819)[10]
+varname
+varnames <- c("Vitvi03g01254")
+set.seed(1234)
+for(vari in 1:2){
+varname <- rownames(t1819)[runif(1,1,10000)]
+plot.ewp(varname,model="")
+plot.ewp(varname,model="+")
+fits <- plot.ewp(varname,model="*")
+}
+length(fits)
+names(fits)
+@
+
+\subsection{Water potential vs Expression }
+
+
+
+<<>>=
+require(reshape2)
+plot.wpe <- function(varname,cols=c(4,2),pchs=c(1,16),lwd=c(1,2,1,2)
+     ,model=c("*"),  exprs=t1819, pd=pdata1819, verbose=FALSE){
+if(verbose) print(varname)
+(y <- unlist(exprs[varname,]))
+means <- tapply(y,pd[,c("date","treat","variety")],mean,na.rm=TRUE)
+means
+swps <- tapply(wpas$swp,wpas[,c("date","treat","variety")],function(x) x[1])
+swps
+ylim <- range(means, na.rm=TRUE)
+xlim <- c(min(wpas$swp,-1.6,na.rm=TRUE), max(wpas$swp,0, na.rm=TRUE))
+vlvls <- levels(wpas$variety)
+tlvls <- levels(wpas$treat)
+#cols <- c(4,2)
+#pchs <- c(1,16)
+plot(1,1, #wpas$swp[tfilter & vfilter], means[,"WS",vlvls[i]],
+      xlim=ylim,
+      ylim=rev(xlim),
+      ylab = "SWP.mean",
+      xlab = "Mean expression",
+      type="n",
+      axes=TRUE
+      )
+
+title(varname, model)
+legend("topright", bty="n", pch=pchs, col=rep(cols,each=2),lwd=lwd,
+       legend= outer(tlvls,vlvls,paste))
+#
+ally <- NULL
+allx <- NULL
+fits <- list(name=varname)
+for(i in 1:length(vlvls)){
+#for( j in 1:length(tlvls)){
+#tfilter <- wpas$treat %in% tlvls[j]
+vfilter <- wpas$variety %in% vlvls[i]
+wpa <- wpas[vfilter,]
+means[,,vlvls[i]]
+mns <- melt(means[,,vlvls[i]])
+wp <- melt(swps[,,vlvls[i]])
+wp
+all(wpa$date==dimnames(mns)$date)
+yy <- mns[,"value"]
+xx <- wp[,"value"]
+points(yy, xx,
+      col = cols[i],
+      pch = pchs[as.numeric(mns$treat)]
+     , cex=0.5+as.numeric(mns$date)/3
+      )
+#      }
+  xx <- xx
+  if(model=="" ) fit <- lm(xx~yy)
+  if(model=="+") fit <- lm(xx~yy+mns$treat)
+  if(model=="*") fit <- lm(xx~yy*mns$treat)
+#
+  if(verbose) print(summary(fit))
+  coef <- fit$coefficients
+  if(length(coef)<3) coef[3] <- 0
+  if(length(coef)<4) coef[4] <- 0
+  abline(coef[1:2], col=cols[i],lwd=1)
+  abline(coef[1:2]+coef[3:4],col=cols[i],lwd=2)
+  ally <- c(ally,yy)
+  allx <- c(allx,xx)
+  fits[[vlvls[i]]] <- fit
+}
+fit <- lm(allx~ally)
+fits[["all"]] <- fit
+fits[["r"]] <- cor(ally,allx,use="complete")
+if (verbose) print(summary(fit))
+abline(fit$coefficients,lwd=2)
+#points(-swps,means,cex=1.5)
+invisible(fits)
+}
+@
+
+<<>>=
+par(mfrow=c(2,3))
+#
+#varname <- rownames(t1819)[10]
+varname <- c("Vitvi03g01254")
+set.seed(1234)
+for(vari in 1:2){
+varname <- rownames(t1819)[runif(1,1,10000)]
+plot.wpe(varname,model="")
+plot.wpe(varname,model="+")
+fits <- plot.wpe(varname,model="*")
+}
+length(fits)
+names(fits)
+@
+
+<<>>=
+testvar <- "Vitvi01g01391"
+@
+
+<<>>=
+par(mfrow=c(2,3))
+#
+#varname <- rownames(t1819)[10]
+varnames <- c("Vitvi03g01254")
+set.seed(1234)
+varname <- rownames(t1819)[runif(1,1,10000)]
+plot.wpe(varname,model="")
+plot.wpe(varname,model="+")
+plot.wpe(varname,model="*")
+fits <- plot.ewp(varname,model="")
+plot.ewp(varname,model="+")
+plot.ewp(varname,model="*")
+@
+
+<<>>=
+fits
+
+@
+
+
+<<>>=
+varname
+pd <- pdata1819
+(y <- unlist(t1819[varname,]))
+means <- tapply(y,pd[,c("date","treat","variety")],mean,na.rm=TRUE)
+means
+par(mfrow=c(2,2))
+plot.ewp(varname,model="")
+usr <- par("usr")
+for(i in 1:2){
+  par(usr=usr)
+  wpa$swp
+  ( yy <- as.vector( ( means[as.character(wpa$date), ,vlvls[i]]) ) )
+  xx <- -rep(wpa$swp, length(tlvls))[!is.na(yy)]
+  yy <- yy[!is.na(yy)]
+  plot(xx, yy, pch=16, col=cols[i], xlim=-xlim, ylim=ylim)
+  fit <- lm(yy ~ xx)
+  abline(fit, col=cols[i])
+  }
+@
+
+\section{Linear models for water potential}
+
+<<>>=
+library(limma)
+@
+
+<<>>=
+exprs <- t1819
+pd <- pdata1819w
+@
+
+We will use models on average expressions across replicates.
+
+<<>>=
+varname <- testvar
+(y <- unlist(t1819[varname,]))
+means <- tapply(y,pd[,c("date","treat","variety")],mean,na.rm=TRUE)
+means
+swps <- tapply(wpas$swp,wpas[,c("date","treat","variety")],function(x) x[1])
+swps
+@
+
+Small phenodata
+<<>>=
+exp <- unlist(as.data.frame(means))
+swp <- unlist(as.data.frame(swps))
+treat <- factor(substr(names(swp),1,2),levels=levels(wpas$treat))
+variety <- factor(substr(names(swp),4,4))
+sday <- as.numeric(substr(names(swp),5,5))
+pd1 <- data.frame(swp,treat,variety,sday=sday,date=dimnames(swps)[[1]],
+     row.names=names(swp))
+pd1
+str(pd1)
+
+@
+
+Graphical test, check the points positions :(
+
+<<>>=
+par(mfrow=c(1,2))
+plot.ewp(varname, model="")
+plot(swp,exp,xlim=c(0,-1.6),pch=16, col=6-as.numeric(variety)*2,cex=sday/2)
+@
+
+Aggregated expressions
+
+<<>>=
+FUN <- function(x) unlist(as.data.frame(tapply(unlist(x),pd[,c("date","treat","variety")],mean,na.rm=TRUE)))
+FUN(exprs[1,])
+expr <- t(apply(exprs,1, FUN=FUN))
+dim(expr)
+str(expr)
+@
+
+<<>>=
+filter <- apply(expr,2,function(x) !all(is.na(x)))
+expr <- expr[,filter]
+pd1 <- pd1[filter,]
+dim(expr)
+dim(pd1)
+str(expr)
+str(pd1)
+
+@
+
+Check regressions
+
+<<>>=
+varname <- testvar
+par(mfrow=c(1,2))
+fits <- plot.ewp(varname, model="")
+plot(swp,exp,xlim=c(0,-1.6),pch=16, col=6-as.numeric(variety)*2,cex=sday/2)
+lapply(fits[2:4],function(x) x$coefficients)
+fitc <- lm(expr[varname,]~pd1$swp*pd1$variety)$coefficients
+fitc[c(1,2)]
+fitf <- c(fitc[1]+fitc[3],fitc[2]+fitc[4])
+fitf
+fitc <- fitc[c(1,2)]
+fita <- lm(expr[varname,]~pd1$swp)$coefficients
+fita
+@
+
+Looks ok.
+
+<<>>=
+all(colnames(expr)==rownames(pd1))
+@
+
+Replace expressions and phenodata with the reduced ones.
+
+<<>>=
+.exprs <- exprs
+.pd <- pd
+@
+
+<<>>=
+exprs <- expr
+pd <- pd1
+all(colnames(exprs)==rownames(pd))
+@
+
+%% Zanimivi:
+%%
+%% <<>>=
+%% izbor <- c(
+%% "Vitvi14g01639",
+%% "Vitvi07g02767"
+%% )
+%% @
+
+<<results='asis'>>=
+cat(knit_child(file.path("../doc/","50a_limma-fit-swp.Rnw"),quiet=TRUE))
+@
+
+
+<<>>=
+@
+
+<<>>=
+
+@
+
+
+%% knitr child handling
+%%
+%<<child='child_file.Rnw'>>=
+%@
+%<<result="hide">>=
+%out <- ""
+%for ( linija in levels(phenodata$Celicna.linija))
+%out <- paste(out,knit_child("child_file.rnw",quiet=TRUE))
+%@
+%\Sexpr{out}
+%%
+% ----------------------------------------------------------------
+%\bibliographystyle{chicago}
+%\addcontentsline{toc}{section}{\refname}
+%\bibliography{ab-general}
+%--------------------------------------------------------------
+
+\clearpage
+\appendix
+\phantomsection\addcontentsline{toc}{section}{\appendixname}
+%\section{\R\ funkcije}
+%\input{}
+\section{Metadata files}
+\subsection{Project metadata}
+
+<<echo=FALSE,results='asis'>>=
+latex(.pdesc
+    , file = ""
+    , where = "!htbp"
+    , col.just = c("p{2.5in}", "p{3in}")
+    , collabel.just = rep("l",2)
+    , colnamesTexCmd = "ttfamily"
+    , rowname = NULL
+    , caption = "Project metadata"
+    , label = "tbl:pdesc"
+    , cellTexCmds = matrix("ttfamily",nrow(.pdesc),ncol(.pdesc))
+    )
+@
+
+\afterpage{\clearpage
+\subsection{Investigation metadata}
+<<echo=FALSE,results='asis'>>=
+latex(.idesc
+    , file = ""
+    , where = "!htbp"
+    , col.just = c("p{2.5in}", "p{3in}")
+    , collabel.just = rep("l",2)
+    , colnamesTexCmd = "ttfamily"
+    , rowname = NULL
+    , caption = "Investigation metadata"
+    , label = "tbl:idesc"
+    , cellTexCmds = matrix("ttfamily",nrow(.idesc),ncol(.idesc))
+    )
+@
+}
+{\clearpage
+\subsection{Study metadata}
+<<echo=FALSE,results='asis'>>=
+latex(.sdesc
+    , file = ""
+    , where = "!htbp"
+    , col.just = c("p{2.5in}", "p{3in}")
+    , collabel.just = rep("l",2)
+    , colnamesTexCmd = "ttfamily"
+    , rowname = NULL
+    , caption = "Study metadata"
+    , label = "tbl:sdesc"
+    , cellTexCmds = matrix("ttfamily",nrow(.sdesc),ncol(.sdesc))
+    )
+@
+}
+{\clearpage
+\subsection{Assay metadata}
+<<echo=FALSE,results='asis'>>=
+latex(.adesc
+    , file = ""
+    , where = "!htbp"
+    , col.just = c("p{2.5in}", "p{3in}")
+    , collabel.just = rep("l",2)
+    , colnamesTexCmd = "ttfamily"
+    , rowname = NULL
+    , caption = "Assay metadata"
+    , label = "tbl:adesc"
+    , cellTexCmds = matrix("ttfamily",nrow(.adesc),ncol(.adesc))
+    )
+@
+}
+
+
+\clearpage
+\thispagestyle{empty}
+\section{SessionInfo}
+{\tiny
+<<sessionInfo,results='asis',echo=FALSE>>=
+cat("{\\ttfamily\n")
+cat(win.version(),"\n")
+toLatex(sessionInfo())
+cat("{\n")
+@
+}
+<<results='asis',echo=FALSE>>=
+sdir <- gsub("/","/\\\\\\\\\n ",dirname(getwd()))
+#cat("Project path:\n\\verb'",sdir,"'\\\\\n")
+args <- commandArgs(trailingOnly = TRUE)
+mainFile <- basename(args[1])
+#
+mainFilePath <- file.path("../doc", mainFile)
+mainFilePath <- gsub("/./","/",mainFilePath)
+projectName <- rev((strsplit(dirname(getwd()), "/"))[[1]])[1]
+#
+@
+<<results='asis',echo=FALSE>>=
+sdir <- dirname(getwd())
+sdir <- strsplit(sdir,split="/")[[1]]
+cdir <- sapply(1:length(sdir),function(x) paste(sdir[1:x],collapse="/"))
+odir <- sdir
+omike <- as.logical(grep("OMIKE",dirname(getwd())))
+if(omike) {
+    odir[1] <- "O:"
+    .files <- paste("../doc",list.files("../doc","^.*\\.R"),sep="/")
+    .files <- file.copy(.files, file.path(.aroot,"scripts"))
+    }
+ldir <- sapply(1:length(odir),function(x) paste(odir[1:x],collapse="/"))
+#mc <- max(sapply(sdir,nchar))
+#sdir <- sdir <- substr(paste0(sdir,"/                                         #"),1,mc+3)
+#odir <- odir <- substr(paste0(odir,"/                                         #"),1,mc+3)
+#
+cat("\\normalsize Analysis project path: [\\href{run:",
+dirname(getwd()),
+"}{link}]\\\\\n",sep="")
+cat("\\texttt{")
+cat("\\begin{tabbing}\n")
+cat("....\\=...............................\\=................................\\kill\n")
+cat("\\>Local \\>Network\\\\")
+for(i in 1:length(sdir)) {
+cat("\\>\\href{run:",cdir[i],"}{",sdir[i],"} \\> ",sep="")
+if(omike) cat("\\href{run:",ldir[i],"}{",odir[i],"}",sep="")
+cat("\\\\\n")
+}
+cat("   \\> \n")
+cat("\\end{tabbing}\n")
+cat("}     ")
+@
+<<results='asis',echo=FALSE>>=
+cat("Main file : \\href{run:", mainFilePath, "}{", mainFilePath ,"}\n\n", sep="")
+mainFile <- strsplit(mainFile,'.',fixed=TRUE)[[1]][1]
+cat("Main file : \\href{run:../scripts/", mainFile, ".Rnw}
+{../scripts/", mainFile ,".Rnw}\n\n", sep="")
+projectName <- rev((strsplit(dirname(getwd()), "/"))[[1]])[1]
+cat("Project file: [\\href{run:",
+file.path(dirname(getwd()),paste0(projectName,".prj")),
+"}{link}]\n",sep="")
+#
+@
+\subsection*{View as vignette}
+{\footnotesize
+Source files can be viewed by pasting this code to \R\ console:\\}
+\tiny{
+%\begin{Schunk}
+%\begin{Sinput}
+\begin{verbatim}
+<<projectFiles,echo=FALSE,results='asis'>>=
+cat(' projectName <-"',projectName,'"\n',sep="")
+cat(' mainFile <-"',mainFile,'"',sep="")
+#
+@
+<<vignette,echo=FALSE,results='asis'>>=
+cat(
+' commandArgs()\n',
+'library(tkWidgets)\n',
+'openPDF(file.path(dirname(getwd()),"doc",\n',
+'paste(mainFile,"PDF",sep=".")))\n',
+'viewVignette("viewVignette", projectName,\n',
+'file.path("../doc",paste(mainFile,"Rnw",sep=".")))\n'
+)
+#
+@
+\end{verbatim}
+%\end{Sinput}
+%\end{Schunk}
+}
+
+\vfill \hrule \vspace{3pt} \footnotesize{
+%Revision \SVNId\hfill (c) A. Blejec%\input{../_COPYRIGHT.}
+%\SVNRevision ~/~ \SVNDate
+\noindent
+\texttt{Git Revision: \gitCommitterUnixDate \gitAbbrevHash{} (\gitCommitterDate)} \hfill \copyright~A. Blejec\\
+\texttt{ \gitReferences} \hfill \verb'\Sexpr{mainFilePath}'\\
+
+}
+
+<<eval=FALSE,echo=FALSE>>=
+# getrootpath <- function() {
+# fp <- (strsplit(getwd(), "/"))[[1]]
+# file <- file.path(paste(fp[-length(fp)], collapse = "/"))
+# return(file)
+# }
+# fileName <- function(name="bla",ext="PDF") paste(name,ext,sep=".")
+@
+
+
+\end{document}
+% ----------------------------------------------------------------

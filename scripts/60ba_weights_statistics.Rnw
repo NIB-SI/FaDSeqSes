@@ -1,0 +1,32 @@
+% -*- TeX:Rnw:UTF-8 -*-
+% ----------------------------------------------------------------
+% .R knitr file  ************************************************
+% ----------------------------------------------------------------
+%%
+<<echo=FALSE>>=
+###############################################
+##                                           ##
+## (c) Andrej Blejec (andrej.blejec@nib.si)  ##
+##                                           ##
+###############################################
+@
+<<echo=FALSE,results='hide'>>=
+options(width=70)
+@
+\clearpage
+\subsubsubsection{\Sexpr{mtb}}
+<<>>=
+filter <- edges$Metabolite == mtb
+w <- abs(edges[filter,"weight"])
+n <- length(w)
+cat("\n--- ",mtb,"\nn = ",n,"\n")
+ps <- c(0.8,0.9,0.95,1)
+print(cbind(cutoff=round(quantile(w,ps),2), n_larger=round(n*(1-ps))))
+par(mfrow=c(2,2))
+hist(w, main=mtb, xlim=c(0.6,0.9))
+boxplot(w, horizontal=TRUE, ylim=c(0.5,0.9))
+plot(w,rank(w), xlim=c(0.6,0.9))
+q <- quantile(w,c(0.90))
+title(paste("n =",length(w)))
+abline(v=q, col=2)
+@

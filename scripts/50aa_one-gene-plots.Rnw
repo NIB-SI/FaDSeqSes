@@ -1,0 +1,59 @@
+% -*- TeX:Rnw:UTF-8 -*-
+% ----------------------------------------------------------------
+% .R knitr file  ************************************************
+% ----------------------------------------------------------------
+%%
+<<echo=FALSE>>=
+###############################################
+##                                           ##
+## (c) Andrej Blejec (andrej.blejec@nib.si)  ##
+##                                           ##
+###############################################
+@
+<<echo=FALSE,results='hide'>>=
+options(width=70)
+@
+
+\clearpage
+\subsubsection{\Sexpr{varname}}
+
+<<>>=
+cat.feature(fdata[fdata$geneID %in% varname,2:5])
+@
+
+Coefficients  for \Sexpr{varname}.
+
+<<echo=FALSE>>=
+tt[varname,]
+
+@
+
+
+<<echo=FALSE>>=
+opts_chunk$set( fig.path=paste0('./figs/50-',varname) )
+@
+
+<<echo=FALSE>>=
+#par(mfrow=c(2,3))
+#
+#plot.wpe(varname,model="")
+#plot.wpe(varname,model="+")
+#plot.wpe(varname,model="*")
+a <- plot.ewp(varname,model="", , exprs=exprs, pd=pd, ylim=range(exprs)
+     , cex= 1.5
+     , pch = c(16,16)
+     )
+#plot.ewp(varname,model="+")
+#plot.ewp(varname,model="*")
+#r2 <- summary(fits[["all"]])$r.squared
+@
+
+<<echo=FALSE>>=
+opts_chunk$set( fig.path='./figs/' )
+@
+
+
+
+
+<<>>=
+@

@@ -1,0 +1,533 @@
+% -*- TeX:Rnw:UTF-8 -*-
+% ----------------------------------------------------------------
+% .R knitr file  ************************************************
+% ----------------------------------------------------------------
+%%
+% \VignetteIndexEntry{}
+% \VignetteDepends{}
+% \VignettePackage{}
+\documentclass[a4paper,12pt]{article}
+%\usepackage[slovene]{babel}
+\usepackage[utf8]{inputenc} %% must be here for Sweave encoding check
+\input{abpkg}
+\input{abcmd}
+\input{abpage}
+\usepackage{pgf,pgfarrows,pgfnodes,pgfautomata,pgfheaps,pgfshade}
+\usepackage{amsmath,amssymb}
+\usepackage{colortbl}
+
+\input{mysweave}
+
+<<include=FALSE, message=FALSE, warnings=FALSE, cache=FALSE>>=
+require(knitr)
+render_sweave()
+opts_chunk$set( fig.path='./figs/'
+    , tidy=TRUE)
+opts_knit$set( concordance=TRUE
+    , root.dir = getwd()
+    , unnamed.chunk.label = "ch"
+    , width = 60
+)
+opts_knit$get("root.dir")
+@
+
+<<additional arguments, echo=FALSE, message=FALSE, warnings=FALSE>>=
+addArgs <- NULL
+addArgs[1] <- c("")[1]
+@
+
+<<pISA projects root, include=FALSE>>=
+.pISAloc <- gsub("/_p_.*","",getwd())
+@
+
+<<eval=FALSE,include=FALSE>>=
+require(knitr)
+if(interactive()) knit(file.path(.pISAloc,"pISA-initialize.Rnw"))
+@
+
+<<pISA initialize, results='hide', include=FALSE, child=file.path(.pISAloc,"pISA-initialize.Rnw")>>=
+@
+
+<<my-utility-functions,results='hide',include=FALSE>>=
+my.summary <-
+function(x,...){
+    dims <- dimnames(x)
+    x <- as.data.frame((lapply(x,  factor)))
+    dimnames(x) <- dims
+    summary(x)
+}
+#my.summary(phdata)
+#
+
+if(!exists("addObject")) {
+addObject <- function(name=NULL,desc="",x=my.objects){
+if(is.null(name)) x <- data.frame(name="",description="",class="", lenght=NA,ncol=NA) else {
+nc <- ncol(name)
+if(is.null(nc)) nc <- NA
+x <- rbind(x,c(deparse(substitute(name)), desc, class(name), length(name), nc))
+x <- x[x$name!="",]
+}
+rownames(x) <- x[,1]
+return(x)
+}
+}
+if(FALSE){
+(my.objects <- addObject())
+(my.objects <- addObject(t18,"Transcripts for 2018"))
+}
+@
+
+<<set specific arguments,results='hide',message=FALSE,warning=FALSE,echo=FALSE>>=
+# Argumenti
+# 1. Ime izvorne datoteke za analizo
+# 2. Izbira genov (ime stolpca v featuredata)
+#
+ .callName <- args[1]
+ .vzorci <- args[2]
+#getwd()
+#args
+@
+
+\setkeys{Gin}{width=0.8\textwidth}  % set graphicx parameter
+\usepackage{lmodern}
+\input{abfont}
+
+% ----------------------------------------------------------------
+\begin{document}
+%% Sweave settings for includegraphics default plot size (Sweave default is 0.8)
+%% notice this must be after begin{document}
+%%% \setkeys{Gin}{width=0.9\textwidth}
+% ----------------------------------------------------------------
+\title{Data preparation}
+\author{A. Blejec}
+%\address{}%
+%\email{}%
+%
+%\thanks{}%
+%\subjclass{}%
+%\keywords{}%
+
+%\date{}%
+%\dedicatory{}%
+%\commby{}%
+\maketitle
+% ----------------------------------------------------------------
+%\begin{abstract}
+%
+%\end{abstract}
+% ----------------------------------------------------------------
+\clearpage
+\tableofcontents
+<<Author:,echo=FALSE>>=
+###############################################
+##                                           ##
+## (c) Andrej Blejec (andrej.blejec@nib.si)  ##
+##                                           ##
+###############################################
+@
+<<initialize,echo=FALSE,include=FALSE,message=FALSE,warning=FALSE>>=
+options(width=70)
+library(Hmisc)
+library(amisc)
+library(Biobase)
+#library(xlsReadWrite)
+library(xtable)
+#library(MASS)
+library(lattice)
+
+@
+\clearpage
+\section{Task}
+
+Final document in folder  \file{/reports}:
+<<>>=
+fileName(outputFile)
+
+@
+
+\clearpage
+\section{Information from pISA}
+
+Data directory
+
+<<>>=
+.inroot
+@
+
+Results directory
+
+<<>>=
+.oroot
+@
+
+<<echo=FALSE>>=
+catln("project:\t",     .pName)
+catln("Investigation: ",.iName)
+catln("Study:         ",.sName)
+catln("Assay:         ",.aName)
+@
+\clearpage
+
+\section{Data}
+
+Priporočljivo je najprej prebrati phenodata in feature-data, potem pa podatke.
+To omogoča izbor spremenljivk in vzorcev takoj za tem, ko podatke preberemo.
+
+
+%% <<eval=!TRUE,include=TRUE>>=
+%% out <- "From: 10a-ReadData.Rnw\n"
+%% out <- paste(out,knit_child(file.path(".","10a-ReadData.Rnw"),quiet=TRUE))
+%% @
+%
+%\Sexpr{out}
+
+<<results='asis'>>=
+cat(knit_child(file.path(".","10a_Read-Data.Rnw"),quiet=TRUE))
+@
+
+List of data objects:
+<<>>=
+my.objects
+@
+
+
+\clearpage
+\section{Data overview}
+
+Genes by variation across samples in each year
+
+<<>>=
+sds <- apply(t18,1,sd)
+table(cut(sds, 0:8))
+sds <- apply(t19,1,sd)
+table(cut(sds, 0:8))
+@
+
+\clearpage
+\subsection{Boxplots and profiles}
+
+
+<<results='asis'>>=
+cat(knit_child(file.path(".","10b_Boxplots-and-profiles.Rnw"),quiet=TRUE))
+@
+
+\clearpage
+\subsection{Interaction plots: 2018}
+
+<<>>=
+y <- t18
+pd <- pdata18
+minsd <- 5
+@
+
+<<results='asis'>>=
+cat(knit_child(file.path(".","10c_Interaction-plots.Rnw"),quiet=TRUE))
+@
+
+
+
+\clearpage
+\subsection{Interaction plots: 2019}
+
+<<>>=
+y <- t19
+pd <- pdata19
+minsd <- 5
+@
+
+<<results='asis'>>=
+cat(knit_child(file.path(".","10c_Interaction-plots.Rnw"),quiet=TRUE))
+@
+
+
+\subsection{Combined years}
+
+
+
+\clearpage
+\subsubsection{Interaction plots treatment x day within varieties}
+
+Here we will select genes with high variability in day 67.
+
+<<>>=
+minsd <- 2.2
+pd <- pdata1819
+y <- t1819
+g67c <- rownames(pd)[pd$day==67&pd$variety=="C"]
+g67f <- rownames(pd)[pd$day==67&pd$variety=="F"]
+sdsc <- apply(y[,g67c],1,sd)
+sdsf <- apply(y[,g67f],1,sd)
+oldpar <- par(mfrow=c(1,2))
+hist(sdsc, main="Standard deviations for C")
+hist(sdsf, main="Standard deviations for F")
+par(oldpar)
+sel <- which((sdsc > minsd)|(sdsf > minsd))
+u <- t(y[sel,])
+head(u)
+dim(u)
+@
+
+<<fig.cap="Standard deviations for F versus C. Full points are selected for plotting.">>=
+plot(sdsc, sdsf)
+points(sdsc[sel],sdsf[sel],pch=16,col=3)
+abline(c(0,1), col=2)
+abline(h=minsd, v=minsd, col=3)
+@
+\clearpage
+\subsubsection{Days from 2018 followed by 2019}
+
+Days from 2018 and 2019 concatenated.
+
+<<>>=
+y <- u
+par(mfrow=c(1,length(levels(pd$variety))),mar=c(5,4,4,3))
+ng <- ncol(y)
+for(i in 1:ng){
+    varname <- colnames(y)[i]
+    ylim <- range(y[,i])
+   for(var in levels(pd$variety)){
+    sel <- pd$variety %in% var
+    with(pd[sel,],
+       my.interaction.plot(day,treat, y[sel,varname], ylim=ylim, type="b", pch=16)
+       )
+    abline(v=which(diff(as.numeric(levels(pd$day)))<0)+0.5,col=8)
+    title(paste(varname,"\n", var))
+    }
+}
+@
+\clearpage
+\subsubsection{Days from the onset of experiment}
+
+Mixed days from 2018 and 2019.
+
+<<>>=
+y <- u
+pd$sday <- factor(pd$day, levels=sort(levels(pd$day)))
+par(mfrow=c(1,length(levels(pd$variety))),mar=c(5,4,4,3))
+ng <- ncol(y)
+for(i in 1:ng){
+    varname <- colnames(y)[i]
+    ylim <- range(y[,i])
+   for(var in levels(pd$variety)){
+    sel <- pd$variety %in% var
+    with(pd[sel,],
+       my.interaction.plot(sday,treat, y[sel,varname], ylim=ylim, type="b", pch=rep(16,2))
+       )
+    title(paste(varname,"\n", var))
+    }
+}
+@
+
+
+
+<<>>=
+@
+
+<<>>=
+
+@
+
+
+%% knitr child handling
+%%
+%<<child='child_file.Rnw'>>=
+%@
+%<<result="hide">>=
+%out <- ""
+%for ( linija in levels(phenodata$Celicna.linija))
+%out <- paste(out,knit_child("child_file.rnw",quiet=TRUE))
+%@
+%\Sexpr{out}
+%%
+% ----------------------------------------------------------------
+%\bibliographystyle{chicago}
+%\addcontentsline{toc}{section}{\refname}
+%\bibliography{ab-general}
+%--------------------------------------------------------------
+
+\clearpage
+\appendix
+\phantomsection\addcontentsline{toc}{section}{\appendixname}
+%\section{\R\ funkcije}
+%\input{}
+\section{Metadata files}
+\subsection{Project metadata}
+
+<<echo=FALSE,results='asis'>>=
+latex(.pdesc
+    , file = ""
+    , where = "!htbp"
+    , col.just = c("p{2.5in}", "p{3in}")
+    , collabel.just = rep("l",2)
+    , colnamesTexCmd = "ttfamily"
+    , rowname = NULL
+    , caption = "Project metadata"
+    , label = "tbl:pdesc"
+    , cellTexCmds = matrix("ttfamily",nrow(.pdesc),ncol(.pdesc))
+    )
+@
+
+\afterpage{\clearpage
+\subsection{Investigation metadata}
+<<echo=FALSE,results='asis'>>=
+latex(.idesc
+    , file = ""
+    , where = "!htbp"
+    , col.just = c("p{2.5in}", "p{3in}")
+    , collabel.just = rep("l",2)
+    , colnamesTexCmd = "ttfamily"
+    , rowname = NULL
+    , caption = "Investigation metadata"
+    , label = "tbl:idesc"
+    , cellTexCmds = matrix("ttfamily",nrow(.idesc),ncol(.idesc))
+    )
+@
+}
+{\clearpage
+\subsection{Study metadata}
+<<echo=FALSE,results='asis'>>=
+latex(.sdesc
+    , file = ""
+    , where = "!htbp"
+    , col.just = c("p{2.5in}", "p{3in}")
+    , collabel.just = rep("l",2)
+    , colnamesTexCmd = "ttfamily"
+    , rowname = NULL
+    , caption = "Study metadata"
+    , label = "tbl:sdesc"
+    , cellTexCmds = matrix("ttfamily",nrow(.sdesc),ncol(.sdesc))
+    )
+@
+}
+{\clearpage
+\subsection{Assay metadata}
+<<echo=FALSE,results='asis'>>=
+latex(.adesc
+    , file = ""
+    , where = "!htbp"
+    , col.just = c("p{2.5in}", "p{3in}")
+    , collabel.just = rep("l",2)
+    , colnamesTexCmd = "ttfamily"
+    , rowname = NULL
+    , caption = "Assay metadata"
+    , label = "tbl:adesc"
+    , cellTexCmds = matrix("ttfamily",nrow(.adesc),ncol(.adesc))
+    )
+@
+}
+
+
+\clearpage
+\thispagestyle{empty}
+\section{SessionInfo}
+{\tiny
+<<sessionInfo,results='asis',echo=FALSE>>=
+cat("{\\ttfamily\n")
+cat(win.version(),"\n")
+toLatex(sessionInfo())
+cat("{\n")
+@
+}
+<<results='asis',echo=FALSE>>=
+sdir <- gsub("/","/\\\\\\\\\n ",dirname(getwd()))
+#cat("Project path:\n\\verb'",sdir,"'\\\\\n")
+args <- commandArgs(trailingOnly = TRUE)
+mainFile <- basename(args[1])
+#
+mainFilePath <- file.path("../doc", mainFile)
+mainFilePath <- gsub("/./","/",mainFilePath)
+projectName <- rev((strsplit(dirname(getwd()), "/"))[[1]])[1]
+#
+@
+<<results='asis',echo=FALSE>>=
+sdir <- dirname(getwd())
+sdir <- strsplit(sdir,split="/")[[1]]
+cdir <- sapply(1:length(sdir),function(x) paste(sdir[1:x],collapse="/"))
+odir <- sdir
+omike <- as.logical(grep("OMIKE",dirname(getwd())))
+if(omike) {
+    odir[1] <- "O:"
+    .files <- paste("../doc",list.files("../doc","^.*\\.R"),sep="/")
+    .files <- file.copy(.files, file.path(.aroot,"scripts"))
+    }
+ldir <- sapply(1:length(odir),function(x) paste(odir[1:x],collapse="/"))
+#mc <- max(sapply(sdir,nchar))
+#sdir <- sdir <- substr(paste0(sdir,"/                                         #"),1,mc+3)
+#odir <- odir <- substr(paste0(odir,"/                                         #"),1,mc+3)
+#
+cat("\\normalsize Analysis project path: [\\href{run:",
+dirname(getwd()),
+"}{link}]\\\\\n",sep="")
+cat("\\texttt{")
+cat("\\begin{tabbing}\n")
+cat("....\\=...............................\\=................................\\kill\n")
+cat("\\>Local \\>Network\\\\")
+for(i in 1:length(sdir)) {
+cat("\\>\\href{run:",cdir[i],"}{",sdir[i],"} \\> ",sep="")
+if(omike) cat("\\href{run:",ldir[i],"}{",odir[i],"}",sep="")
+cat("\\\\\n")
+}
+cat("   \\> \n")
+cat("\\end{tabbing}\n")
+cat("}     ")
+@
+<<results='asis',echo=FALSE>>=
+cat("Main file : \\href{run:", mainFilePath, "}{", mainFilePath ,"}\n\n", sep="")
+mainFile <- strsplit(mainFile,'.',fixed=TRUE)[[1]][1]
+cat("Main file : \\href{run:../scripts/", mainFile, ".Rnw}
+{../scripts/", mainFile ,".Rnw}\n\n", sep="")
+projectName <- rev((strsplit(dirname(getwd()), "/"))[[1]])[1]
+cat("Project file: [\\href{run:",
+file.path(dirname(getwd()),paste0(projectName,".prj")),
+"}{link}]\n",sep="")
+#
+@
+\subsection*{View as vignette}
+{\footnotesize
+Source files can be viewed by pasting this code to \R\ console:\\}
+\tiny{
+%\begin{Schunk}
+%\begin{Sinput}
+\begin{verbatim}
+<<projectFiles,echo=FALSE,results='asis'>>=
+cat(' projectName <-"',projectName,'"\n',sep="")
+cat(' mainFile <-"',mainFile,'"',sep="")
+#
+@
+<<vignette,echo=FALSE,results='asis'>>=
+cat(
+' commandArgs()\n',
+'library(tkWidgets)\n',
+'openPDF(file.path(dirname(getwd()),"doc",\n',
+'paste(mainFile,"PDF",sep=".")))\n',
+'viewVignette("viewVignette", projectName,\n',
+'file.path("../doc",paste(mainFile,"Rnw",sep=".")))\n'
+)
+#
+@
+\end{verbatim}
+%\end{Sinput}
+%\end{Schunk}
+}
+
+\vfill \hrule \vspace{3pt} \footnotesize{
+%Revision \SVNId\hfill (c) A. Blejec%\input{../_COPYRIGHT.}
+%\SVNRevision ~/~ \SVNDate
+\noindent
+\texttt{Git Revision: \gitCommitterUnixDate \gitAbbrevHash{} (\gitCommitterDate)} \hfill \copyright~A. Blejec\\
+\texttt{ \gitReferences} \hfill \verb'\Sexpr{mainFilePath}'\\
+
+}
+
+<<eval=FALSE,echo=FALSE>>=
+# getrootpath <- function() {
+# fp <- (strsplit(getwd(), "/"))[[1]]
+# file <- file.path(paste(fp[-length(fp)], collapse = "/"))
+# return(file)
+# }
+# fileName <- function(name="bla",ext="PDF") paste(name,ext,sep=".")
+@
+
+
+\end{document}
+% ----------------------------------------------------------------

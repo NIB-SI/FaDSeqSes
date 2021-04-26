@@ -1,0 +1,118 @@
+% -*- TeX:Rnw:UTF-8 -*-
+% ----------------------------------------------------------------
+% .R knitr file  ************************************************
+% ----------------------------------------------------------------
+%%
+<<echo=FALSE>>=
+###############################################
+##                                           ##
+## (c) Andrej Blejec (andrej.blejec@nib.si)  ##
+##                                           ##
+###############################################
+@
+<<echo=FALSE,results='hide'>>=
+options(width=70)
+pc <- stat4[varname,"P.value.c"]
+pfc <- stat4[varname,"P.value.f.c"]
+inc <- c(" ","*")[(pc < alpha)+1]
+incf <- c(" ","+")[((pc > alpha)&(pfc < alpha))+1]
+@
+
+\clearpage
+\subsubsection{ \Sexpr{varname}: \Sexpr{df4[varname,typevar]} \Sexpr{inc}\Sexpr{incf} }
+
+<<echo=FALSE,eval=FALSE,include=FALSE>>=
+varname
+@
+
+<<>>=
+#cat.feature(fdata[fdata$geneID %in% varname,2:5])
+cat.feature(mfdata[varname,])
+@
+
+Coefficients  for \Sexpr{varname}.
+
+<<echo=FALSE>>=
+fill <- function(x, n=1, sep=" "){
+    ns <- nchar(x)
+    ns <- max(ns)-ns+n
+    fills <- paste(rep(sep,20),collapse="")
+    for(i in 1:length(x))
+    x[i] <- paste0(x[i],substr(fills,1,ns[i]))
+x
+}
+@
+
+<<echo=FALSE>>=
+p.stars <- function(x, legend=FALSE, ...){
+   Signif <- symnum(x
+  , corr = FALSE, na = FALSE,
+                cutpoints = c(0, 0.001, 0.01, 0.05, 0.1, 1),
+                symbols = c("***", "**", "*", ".", " "),
+                legend = legend,
+                 ...)
+Signif
+}
+@
+
+<<eval=FALSE, echo=FALSE, results="hide">>=
+pp <- unlist(x[,2])
+pp0 <- c(0.1,0.001,0.05)
+pp0 <- c(1.426785e-01 ,7.199473e-01 ,5.286929e-01)
+pp
+Signif <- NULL
+as.character(p.stars(pp0))
+@
+
+<<echo=FALSE>>=
+## tt[varname,]  # is the same as in stat4
+cn <- colnames(stat4)
+idc <- grep("Coef",cn)
+idp <- grep("P.value",cn)
+x <- data.frame(matrix(stat4[varname,c(idc,idp)],ncol=3,
+    dimnames=list(cn[idc],c("Value","P.value","P.value.adj")))
+)
+signif <- p.stars(unlist(x[,2]))
+x$sig <- as.list(signif)
+x$sig.adj <- as.list(p.stars(unlist(x[,3])))
+x <- x[,c(1:2,4,3,5)]
+cdesc <- c("MeanC", "SlopeC", "MeanF-MeanC", "SlopeF-SlopeC")
+
+#rownames(x) <- paste(fill(rownames(x)),cdesc)
+rownames(x) <-  cdesc
+#printCoefmat(x, has.Pvalue=TRUE)
+x
+@
+
+
+<<echo=FALSE>>=
+opts_chunk$set( fig.path=paste0('./figs/55-',varname,"-") )
+@
+
+<<echo=FALSE>>=
+#par(mfrow=c(2,3))
+#
+#plot.wpe(varname,model="")
+#plot.wpe(varname,model="+")
+#plot.wpe(varname,model="*")
+a <- plot.ewp(varname,model="", , exprs=exprs, pd=pd, ylim=range(exprs)
+     , cex= 1.5
+     , pch = c(16,16)
+     , all = FALSE
+     )
+mtext(paste(round(coefs[varname,],1),collapse=" | "),cex=0.75)
+abline(v= -1.4, col=8, lty=2)
+#plot.ewp(varname,model="+")
+#plot.ewp(varname,model="*")
+#r2 <- summary(fits[["all"]])$r.squared
+@
+
+<<echo=FALSE>>=
+opts_chunk$set( fig.path='./figs/50-' )
+@
+
+
+
+
+<<>>=
+@
